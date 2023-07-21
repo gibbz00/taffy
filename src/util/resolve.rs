@@ -81,21 +81,21 @@ impl<In, Out, T: MaybeResolve<In, Out>> MaybeResolve<Size<In>, Size<Out>> for Si
 impl<U: Unit> ResolveOrZero<Option<U>, U> for LengthPercentage<U> {
     /// Will return a default value of result is evaluated to `None`
     fn resolve_or_zero(self, context: Option<U>) -> U {
-        self.maybe_resolve(context).unwrap_or(0.0)
+        self.maybe_resolve(context).unwrap_or(U::zero())
     }
 }
 
 impl<U: Unit> ResolveOrZero<Option<U>, U> for LengthPercentageAuto<U> {
     /// Will return a default value of result is evaluated to `None`
     fn resolve_or_zero(self, context: Option<U>) -> U {
-        self.maybe_resolve(context).unwrap_or(0.0)
+        self.maybe_resolve(context).unwrap_or(U::zero())
     }
 }
 
 impl<U: Unit> ResolveOrZero<Option<U>, U> for Dimension<U> {
     /// Will return a default value of result is evaluated to `None`
     fn resolve_or_zero(self, context: Option<U>) -> U {
-        self.maybe_resolve(context).unwrap_or(0.0)
+        self.maybe_resolve(context).unwrap_or(U::zero())
     }
 }
 

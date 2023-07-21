@@ -2,8 +2,8 @@
 //! <https://www.w3.org/TR/css-grid-1/#placement>
 use super::types::{CellOccupancyMatrix, CellOccupancyState, GridItem};
 use super::OriginZeroLine;
-use crate::geometry::Line;
 use crate::geometry::{AbsoluteAxis, InBothAbsAxis};
+use crate::geometry::{Line, Unit};
 use crate::style::{AlignItems, GridAutoFlow, OriginZeroGridPlacement, Style};
 use crate::tree::NodeId;
 use crate::util::sys::Vec;
@@ -12,15 +12,16 @@ use crate::util::sys::Vec;
 /// Place items into the grid, generating new rows/column into the implicit grid as required
 ///
 /// [Specification](https://www.w3.org/TR/css-grid-2/#auto-placement-algo)
-pub(super) fn place_grid_items<'a, ChildIter>(
+pub(super) fn place_grid_items<'a, U, ChildIter>(
     cell_occupancy_matrix: &mut CellOccupancyMatrix,
-    items: &mut Vec<GridItem>,
+    items: &mut Vec<GridItem<U>>,
     children_iter: impl Fn() -> ChildIter,
     grid_auto_flow: GridAutoFlow,
     align_items: AlignItems,
     justify_items: AlignItems,
 ) where
-    ChildIter: Iterator<Item = (usize, NodeId, &'a Style)>,
+    U: Unit + 'a,
+    ChildIter: Iterator<Item = (usize, NodeId, &'a Style<U>)>,
 {
     let primary_axis = grid_auto_flow.primary_axis();
     let secondary_axis = primary_axis.other_axis();
@@ -296,12 +297,12 @@ fn place_indefinitely_positioned_item(
 /// Record the grid item in both CellOccupancyMatric and the GridItems list
 /// once a definite placement has been determined
 #[allow(clippy::too_many_arguments)]
-fn record_grid_placement(
+fn record_grid_placement<U: Unit>(
     cell_occupancy_matrix: &mut CellOccupancyMatrix,
-    items: &mut Vec<GridItem>,
+    items: &mut Vec<GridItem<U>>,
     node: NodeId,
     index: usize,
-    style: &Style,
+    style: &Style<U>,
     parent_align_items: AlignItems,
     parent_justify_items: AlignItems,
     primary_axis: AbsoluteAxis,

@@ -36,15 +36,15 @@ pub(in super::super) struct GridItem<U: Unit = f32> {
     /// The item's overflow style
     pub overflow: Point<Overflow>,
     /// The item's size style
-    pub size: Size<Dimension>,
+    pub size: Size<Dimension<U>>,
     /// The item's min_size style
-    pub min_size: Size<Dimension>,
+    pub min_size: Size<Dimension<U>>,
     /// The item's max_size style
-    pub max_size: Size<Dimension>,
+    pub max_size: Size<Dimension<U>>,
     /// The item's aspect_ratio style
     pub aspect_ratio: Option<f32>,
     /// The item's margin style
-    pub margin: Rect<LengthPercentageAuto>,
+    pub margin: Rect<LengthPercentageAuto<U>>,
     /// The item's align_self property, or the parent's align_items property is not set
     pub align_self: AlignSelf,
     /// The item's justify_self property, or the parent's justify_items property is not set
@@ -93,7 +93,7 @@ impl<U: Unit> GridItem<U> {
         parent_justify_items: AlignItems,
         source_order: u16,
     ) -> Self {
-        GridItem {
+        Self {
             node,
             source_order,
             row: row_span,
@@ -107,7 +107,7 @@ impl<U: Unit> GridItem<U> {
             align_self: style.align_self.unwrap_or(parent_align_items),
             justify_self: style.justify_self.unwrap_or(parent_justify_items),
             baseline: None,
-            baseline_shim: 0.0,
+            baseline_shim: U::zero(),
             row_indexes: Line { start: 0, end: 0 }, // Properly initialised later
             column_indexes: Line { start: 0, end: 0 }, // Properly initialised later
             crosses_flexible_row: false,            // Properly initialised later
@@ -282,7 +282,7 @@ impl<U: Unit> GridItem<U> {
         axis: AbstractAxis,
         other_axis_tracks: &[GridTrack<U>],
         other_axis_available_space: Option<U>,
-        get_track_size_estimate: impl Fn(&GridTrack, Option<U>) -> Option<U>,
+        get_track_size_estimate: impl Fn(&GridTrack<U>, Option<U>) -> Option<U>,
     ) -> Size<Option<U>> {
         let item_other_axis_size: Option<U> = {
             other_axis_tracks[self.track_range_excluding_lines(axis.other())]
@@ -305,7 +305,7 @@ impl<U: Unit> GridItem<U> {
         axis: AbstractAxis,
         other_axis_tracks: &[GridTrack<U>],
         other_axis_available_space: Option<U>,
-        get_track_size_estimate: impl Fn(&GridTrack, Option<U>) -> Option<U>,
+        get_track_size_estimate: impl Fn(&GridTrack<U>, Option<U>) -> Option<U>,
     ) -> Size<Option<U>> {
         self.available_space_cache.unwrap_or_else(|| {
             let available_spaces =

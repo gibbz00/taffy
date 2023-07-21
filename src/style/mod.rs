@@ -193,7 +193,7 @@ pub struct Style<U: Unit = f32> {
     /// Sets the preferred aspect ratio for the item
     ///
     /// The ratio is calculated as width divided by height.
-    pub aspect_ratio: Option<U>,
+    pub aspect_ratio: Option<f32>,
 
     // Spacing Properties
     /// How large should the margin be on each side?
@@ -256,16 +256,16 @@ pub struct Style<U: Unit = f32> {
     // Grid container properies
     /// Defines the track sizing functions (widths) of the grid rows
     #[cfg(feature = "grid")]
-    pub grid_template_rows: GridTrackVec<TrackSizingFunction>,
+    pub grid_template_rows: GridTrackVec<TrackSizingFunction<U>>,
     /// Defines the track sizing functions (heights) of the grid columns
     #[cfg(feature = "grid")]
-    pub grid_template_columns: GridTrackVec<TrackSizingFunction>,
+    pub grid_template_columns: GridTrackVec<TrackSizingFunction<U>>,
     /// Defines the size of implicitly created rows
     #[cfg(feature = "grid")]
-    pub grid_auto_rows: GridTrackVec<NonRepeatedTrackSizingFunction>,
+    pub grid_auto_rows: GridTrackVec<NonRepeatedTrackSizingFunction<U>>,
     /// Defined the size of implicitly created columns
     #[cfg(feature = "grid")]
-    pub grid_auto_columns: GridTrackVec<NonRepeatedTrackSizingFunction>,
+    pub grid_auto_columns: GridTrackVec<NonRepeatedTrackSizingFunction<U>>,
     /// Controls how items get placed into the grid for auto-placed items
     #[cfg(feature = "grid")]
     pub grid_auto_flow: GridAutoFlow,

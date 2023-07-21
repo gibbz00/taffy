@@ -3,6 +3,7 @@ use num_traits::real::Real;
 
 use crate::compute::LayoutAlgorithm;
 use crate::geometry::{Line, Point, Rect, Size, Unit};
+use crate::prelude::TaffyZero;
 use crate::style::{AvailableSpace, Display, LengthPercentageAuto, Overflow, Position};
 use crate::style_helpers::TaffyMaxContent;
 use crate::tree::{CollapsibleMarginSet, Layout, RunMode, SizeBaselinesAndMargins, SizingMode};
@@ -83,9 +84,9 @@ struct BlockItem<U: Unit = f32> {
     /// The position style of the item
     position: Position,
     /// The final offset of this item
-    inset: Rect<LengthPercentageAuto>,
+    inset: Rect<LengthPercentageAuto<U>>,
     /// The margin of this item
-    margin: Rect<LengthPercentageAuto>,
+    margin: Rect<LengthPercentageAuto<U>>,
     /// The sum of padding and border for this item
     padding_border_sum: Size<U>,
 
@@ -185,10 +186,10 @@ fn compute_inner<U: Unit>(
     let scrollbar_gutter = {
         let offsets = style.overflow.transpose().map(|overflow| match overflow {
             Overflow::Scroll => style.scrollbar_width,
-            _ => 0.0,
+            _ => U::zero(),
         });
         // TODO: make side configurable based on the `direction` property
-        Rect { top: 0.0, left: 0.0, right: offsets.x, bottom: offsets.y }
+        Rect { top: U::zero(), left: U::zero(), right: offsets.x, bottom: offsets.y }
     };
     let padding_border = padding + border;
     let padding_border_size = padding_border.sum_axes();
@@ -201,24 +202,24 @@ fn compute_inner<U: Unit>(
             && !style.overflow.x.is_scroll_container()
             && !style.overflow.y.is_scroll_container()
             && style.position == Position::Relative
-            && padding.top == 0.0
-            && border.top == 0.0,
+            && padding.top == U::zero()
+            && border.top == U::zero(),
         end: vertical_margins_are_collapsible.end
             && !style.overflow.x.is_scroll_container()
             && !style.overflow.y.is_scroll_container()
             && style.position == Position::Relative
-            && padding.bottom == 0.0
-            && border.bottom == 0.0
+            && padding.bottom == U::zero()
+            && border.bottom == U::zero()
             && size.height.is_none(),
     };
     let has_styles_preventing_being_collapsed_through = style.display != Display::Block
         || style.overflow.x.is_scroll_container()
         || style.overflow.y.is_scroll_container()
         || style.position == Position::Absolute
-        || padding.top > 0.0
-        || padding.bottom > 0.0
-        || border.top > 0.0
-        || border.bottom > 0.0;
+        || padding.top > U::zero()
+        || padding.bottom > U::zero()
+        || border.top > U::zero()
+        || border.bottom > U::zero();
 
     // 1. Generate items
     let mut items = generate_item_list(tree, node_id, container_content_box_size);
@@ -323,7 +324,7 @@ fn generate_item_list<U: Unit>(
             let aspect_ratio = child_style.aspect_ratio;
             let padding = child_style.padding.resolve_or_zero(node_inner_size);
             let border = child_style.border.resolve_or_zero(node_inner_size);
-            BlockItem {
+            BlockItem::<U> {
                 node_id: child_node_id,
                 order: order as u32,
 
@@ -353,7 +354,7 @@ fn determine_content_based_container_width<U: Unit>(
 ) -> U {
     let available_space = Size { width: available_width, height: AvailableSpace::MinContent };
 
-    let mut max_child_width = 0.0;
+    let mut max_child_width = U::zero();
     for item in items.iter().filter(|item| item.position != Position::Absolute) {
         let known_dimensions = item.size.maybe_clamp(item.min_size, item.max_size);
 
@@ -404,7 +405,7 @@ fn perform_final_layout_on_in_flow_children<U: Unit>(
             item.static_position.y = committed_y_offset;
         } else {
             let item_margin = item.margin.map(|margin| margin.resolve_to_option(container_outer_width));
-            let item_non_auto_margin = item_margin.map(|m| m.unwrap_or(0.0));
+            let item_non_auto_margin = item_margin.map(|m| m.unwrap_or(U::zero()));
             let item_non_auto_x_margin_sum = item_non_auto_margin.horizontal_axis_sum();
             let known_dimensions = item
                 .size
@@ -421,21 +422,23 @@ fn perform_final_layout_on_in_flow_children<U: Unit>(
             );
             let final_size = item_layout.size;
 
-            let top_margin_set = item_layout.top_margin.collapse_with_margin(item_margin.top.unwrap_or(0.0));
-            let bottom_margin_set = item_layout.bottom_margin.collapse_with_margin(item_margin.bottom.unwrap_or(0.0));
+            let top_margin_set = item_layout.top_margin.collapse_with_margin(item_margin.top.unwrap_or(U::zero()));
+            let bottom_margin_set =
+                item_layout.bottom_margin.collapse_with_margin(item_margin.bottom.unwrap_or(U::zero()));
 
             // Expand auto margins to fill available space
             // Note: Vertical auto-margins for relatively positioned block items simply resolve to 0.
             // See: https://www.w3.org/TR/CSS21/visudet.html#abs-non-replaced-width
-            let free_x_space = Real::max(0.0, container_inner_width - final_size.width - item_non_auto_x_margin_sum);
+            let free_x_space =
+                Real::max(U::zero(), container_inner_width - final_size.width - item_non_auto_x_margin_sum);
             let x_axis_auto_margin_size = {
                 let auto_margin_count = item_margin.left.is_none() as u8 + item_margin.right.is_none() as u8;
                 if auto_margin_count == 2 && item.size.width.is_none() {
-                    0.0
+                    U::zero()
                 } else if auto_margin_count > 0 {
                     free_x_space / auto_margin_count as U
                 } else {
-                    0.0
+                    U::zero()
                 }
             };
             let resolved_margin = Rect {
@@ -446,15 +449,16 @@ fn perform_final_layout_on_in_flow_children<U: Unit>(
             };
 
             // Resolve item inset
-            let inset =
-                item.inset.zip_size(Size { width: container_inner_width, height: 0.0 }, |p, s| p.maybe_resolve(s));
+            let inset = item
+                .inset
+                .zip_size(Size { width: container_inner_width, height: U::zero() }, |p, s| p.maybe_resolve(s));
             let inset_offset = Point {
-                x: inset.left.or(inset.right.map(|x| -x)).unwrap_or(0.0),
-                y: inset.top.or(inset.bottom.map(|x| -x)).unwrap_or(0.0),
+                x: inset.left.or(inset.right.map(|x| -x)).unwrap_or(U::zero()),
+                y: inset.top.or(inset.bottom.map(|x| -x)).unwrap_or(U::zero()),
             };
 
             let y_margin_offset = if is_collapsing_with_first_margin_set && own_margins_collapse_with_children.start {
-                0.0
+                U::zero()
             } else {
                 active_collapsible_margin_set.collapse_with_margin(resolved_margin.top).resolve()
             };
@@ -501,10 +505,10 @@ fn perform_final_layout_on_in_flow_children<U: Unit>(
 
     let last_child_bottom_margin_set = active_collapsible_margin_set;
     let bottom_y_margin_offset =
-        if own_margins_collapse_with_children.end { 0.0 } else { last_child_bottom_margin_set.resolve() };
+        if own_margins_collapse_with_children.end { U::zero() } else { last_child_bottom_margin_set.resolve() };
 
     committed_y_offset += resolved_content_box_inset.bottom + bottom_y_margin_offset;
-    let content_height = Real::max(0.0, committed_y_offset);
+    let content_height = Real::max(U::zero(), committed_y_offset);
     (content_height, first_child_top_margin_set, last_child_bottom_margin_set)
 }
 
@@ -555,7 +559,7 @@ fn perform_absolute_layout_on_absolute_children<U: Unit>(
         //   - Item has both left and right inset properties set
         if let (None, Some(left), Some(right)) = (known_dimensions.width, left, right) {
             let new_width_raw = area_width.maybe_sub(margin.left).maybe_sub(margin.right) - left - right;
-            known_dimensions.width = Some(Real::max(new_width_raw, 0.0));
+            known_dimensions.width = Some(Real::max(new_width_raw, U::zero()));
             known_dimensions = known_dimensions.maybe_apply_aspect_ratio(aspect_ratio).maybe_clamp(min_size, max_size);
         }
 
@@ -564,7 +568,7 @@ fn perform_absolute_layout_on_absolute_children<U: Unit>(
         //   - Item has both top and bottom inset properties set
         if let (None, Some(top), Some(bottom)) = (known_dimensions.height, top, bottom) {
             let new_height_raw = area_height.maybe_sub(margin.top).maybe_sub(margin.bottom) - top - bottom;
-            known_dimensions.height = Some(Real::max(new_height_raw, 0.0));
+            known_dimensions.height = Some(Real::max(new_height_raw, U::zero()));
             known_dimensions = known_dimensions.maybe_apply_aspect_ratio(aspect_ratio).maybe_clamp(min_size, max_size);
         }
 
@@ -583,10 +587,10 @@ fn perform_absolute_layout_on_absolute_children<U: Unit>(
         let final_size = known_dimensions.unwrap_or(measured_size).maybe_clamp(min_size, max_size);
 
         let non_auto_margin = Rect {
-            left: if left.is_some() { margin.left.unwrap_or(0.0) } else { 0.0 },
-            right: if right.is_some() { margin.right.unwrap_or(0.0) } else { 0.0 },
-            top: if top.is_some() { margin.top.unwrap_or(0.0) } else { 0.0 },
-            bottom: if bottom.is_some() { margin.left.unwrap_or(0.0) } else { 0.0 },
+            left: if left.is_some() { margin.left.unwrap_or(U::zero()) } else { U::zero() },
+            right: if right.is_some() { margin.right.unwrap_or(U::zero()) } else { U::zero() },
+            top: if top.is_some() { margin.top.unwrap_or(U::zero()) } else { U::zero() },
+            bottom: if bottom.is_some() { margin.left.unwrap_or(U::zero()) } else { U::zero() },
         };
 
         // Expand auto margins to fill available space
@@ -595,8 +599,10 @@ fn perform_absolute_layout_on_absolute_children<U: Unit>(
             // Auto margins for absolutely positioned elements in block containers only resolve
             // if inset is set. Otherwise they resolve to 0.
             let absolute_auto_margin_space = Point {
-                x: right.map(|right| area_size.width - right - left.unwrap_or(0.0)).unwrap_or(final_size.width),
-                y: bottom.map(|bottom| area_size.height - bottom - top.unwrap_or(0.0)).unwrap_or(final_size.height),
+                x: right.map(|right| area_size.width - right - left.unwrap_or(U::zero())).unwrap_or(final_size.width),
+                y: bottom
+                    .map(|bottom| area_size.height - bottom - top.unwrap_or(U::zero()))
+                    .unwrap_or(final_size.height),
             };
             let free_space = Size {
                 width: absolute_auto_margin_space.x - final_size.width - non_auto_margin.horizontal_axis_sum(),
@@ -618,11 +624,11 @@ fn perform_absolute_layout_on_absolute_children<U: Unit>(
                     if auto_margin_count == 2
                         && (style_size.width.is_none() || style_size.width.unwrap() >= free_space.width)
                     {
-                        0.0
+                        U::zero()
                     } else if auto_margin_count > 0 {
                         free_space.width / auto_margin_count as U
                     } else {
-                        0.0
+                        U::zero()
                     }
                 },
                 height: {
@@ -630,20 +636,20 @@ fn perform_absolute_layout_on_absolute_children<U: Unit>(
                     if auto_margin_count == 2
                         && (style_size.height.is_none() || style_size.height.unwrap() >= free_space.height)
                     {
-                        0.0
+                        U::zero()
                     } else if auto_margin_count > 0 {
                         free_space.height / auto_margin_count as U
                     } else {
-                        0.0
+                        U::zero()
                     }
                 },
             };
 
             Rect {
-                left: margin.left.map(|_| 0.0).unwrap_or(auto_margin_size.width),
-                right: margin.right.map(|_| 0.0).unwrap_or(auto_margin_size.width),
-                top: margin.top.map(|_| 0.0).unwrap_or(auto_margin_size.height),
-                bottom: margin.bottom.map(|_| 0.0).unwrap_or(auto_margin_size.height),
+                left: margin.left.map(|_| U::zero()).unwrap_or(auto_margin_size.width),
+                right: margin.right.map(|_| U::zero()).unwrap_or(auto_margin_size.width),
+                top: margin.top.map(|_| U::zero()).unwrap_or(auto_margin_size.height),
+                bottom: margin.bottom.map(|_| U::zero()).unwrap_or(auto_margin_size.height),
             }
         };
 

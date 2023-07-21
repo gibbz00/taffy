@@ -89,7 +89,7 @@ impl<U: Unit> Cache<U> {
         known_dimensions: Size<Option<U>>,
         available_space: Size<AvailableSpace<U>>,
         run_mode: RunMode,
-    ) -> Option<SizeBaselinesAndMargins> {
+    ) -> Option<SizeBaselinesAndMargins<U>> {
         for entry in self.entries.iter().flatten() {
             // Cached ComputeSize results are not valid if we are running in PerformLayout mode
             if entry.run_mode == RunMode::ComputeSize && run_mode == RunMode::PerformLayout {
@@ -120,7 +120,7 @@ impl<U: Unit> Cache<U> {
         known_dimensions: Size<Option<U>>,
         available_space: Size<AvailableSpace<U>>,
         run_mode: RunMode,
-        cached_size_and_baselines: SizeBaselinesAndMargins,
+        cached_size_and_baselines: SizeBaselinesAndMargins<U>,
     ) {
         let cache_slot = Self::compute_cache_slot(known_dimensions, available_space);
         self.entries[cache_slot] =

@@ -255,21 +255,21 @@ pub enum MaxTrackSizingFunction<U: Unit = f32> {
     /// Spec: <https://www.w3.org/TR/css3-grid-layout/#fr-unit>
     Fraction(U),
 }
-impl TaffyAuto for MaxTrackSizingFunction {
+impl<U: Unit> TaffyAuto for MaxTrackSizingFunction<U> {
     const AUTO: Self = Self::Auto;
 }
-impl TaffyMinContent for MaxTrackSizingFunction {
+impl<U: Unit> TaffyMinContent for MaxTrackSizingFunction<U> {
     const MIN_CONTENT: Self = Self::MinContent;
 }
-impl TaffyMaxContent for MaxTrackSizingFunction {
+impl<U: Unit> TaffyMaxContent for MaxTrackSizingFunction<U> {
     const MAX_CONTENT: Self = Self::MaxContent;
 }
-impl TaffyFitContent for MaxTrackSizingFunction {
-    fn fit_content(argument: LengthPercentage) -> Self {
+impl<U: Unit> TaffyFitContent<U> for MaxTrackSizingFunction<U> {
+    fn fit_content(argument: LengthPercentage<U>) -> Self {
         Self::FitContent(argument)
     }
 }
-impl TaffyZero for MaxTrackSizingFunction {
+impl<U: Unit> TaffyZero for MaxTrackSizingFunction<U> {
     fn zero() -> Self {
         Self::Fixed(LengthPercentage::zero())
     }
@@ -376,16 +376,16 @@ pub enum MinTrackSizingFunction<U: Unit = f32> {
     /// Track minimum size should be automatically sized
     Auto,
 }
-impl TaffyAuto for MinTrackSizingFunction {
+impl<U: Unit> TaffyAuto for MinTrackSizingFunction<U> {
     const AUTO: Self = Self::Auto;
 }
-impl TaffyMinContent for MinTrackSizingFunction {
+impl<U: Unit> TaffyMinContent for MinTrackSizingFunction<U> {
     const MIN_CONTENT: Self = Self::MinContent;
 }
-impl TaffyMaxContent for MinTrackSizingFunction {
+impl<U: Unit> TaffyMaxContent for MinTrackSizingFunction<U> {
     const MAX_CONTENT: Self = Self::MaxContent;
 }
-impl TaffyZero for MinTrackSizingFunction {
+impl<U: Unit> TaffyZero for MinTrackSizingFunction<U> {
     fn zero() -> Self {
         Self::Fixed(LengthPercentage::zero())
     }
@@ -444,13 +444,13 @@ impl<U: Unit> MinTrackSizingFunction<U> {
 /// May either be a MinMax variant which specifies separate values for the min-/max- track sizing functions
 /// or a scalar value which applies to both track sizing functions.
 pub type NonRepeatedTrackSizingFunction<U: Unit = f32> = MinMax<MinTrackSizingFunction<U>, MaxTrackSizingFunction<U>>;
-impl NonRepeatedTrackSizingFunction {
+impl<U: Unit> NonRepeatedTrackSizingFunction<U> {
     /// Extract the min track sizing function
-    pub fn min_sizing_function(&self) -> MinTrackSizingFunction {
+    pub fn min_sizing_function(&self) -> MinTrackSizingFunction<U> {
         self.min
     }
     /// Extract the max track sizing function
-    pub fn max_sizing_function(&self) -> MaxTrackSizingFunction {
+    pub fn max_sizing_function(&self) -> MaxTrackSizingFunction<U> {
         self.max
     }
     /// Determine whether at least one of the components ("min" and "max") are fixed sizing function
@@ -458,23 +458,23 @@ impl NonRepeatedTrackSizingFunction {
         matches!(self.min, MinTrackSizingFunction::Fixed(_)) || matches!(self.max, MaxTrackSizingFunction::Fixed(_))
     }
 }
-impl TaffyAuto for NonRepeatedTrackSizingFunction {
+impl<U: Unit> TaffyAuto for NonRepeatedTrackSizingFunction<U> {
     const AUTO: Self = Self { min: MinTrackSizingFunction::AUTO, max: MaxTrackSizingFunction::AUTO };
 }
-impl TaffyMinContent for NonRepeatedTrackSizingFunction {
+impl<U: Unit> TaffyMinContent for NonRepeatedTrackSizingFunction<U> {
     const MIN_CONTENT: Self =
         Self { min: MinTrackSizingFunction::MIN_CONTENT, max: MaxTrackSizingFunction::MIN_CONTENT };
 }
-impl TaffyMaxContent for NonRepeatedTrackSizingFunction {
+impl<U: Unit> TaffyMaxContent for NonRepeatedTrackSizingFunction<U> {
     const MAX_CONTENT: Self =
         Self { min: MinTrackSizingFunction::MAX_CONTENT, max: MaxTrackSizingFunction::MAX_CONTENT };
 }
-impl TaffyFitContent for NonRepeatedTrackSizingFunction {
-    fn fit_content(argument: LengthPercentage) -> Self {
+impl<U: Unit> TaffyFitContent<U> for NonRepeatedTrackSizingFunction<U> {
+    fn fit_content(argument: LengthPercentage<U>) -> Self {
         Self { min: MinTrackSizingFunction::AUTO, max: MaxTrackSizingFunction::FitContent(argument) }
     }
 }
-impl TaffyZero for NonRepeatedTrackSizingFunction {
+impl<U: Unit> TaffyZero for NonRepeatedTrackSizingFunction<U> {
     fn zero() -> Self {
         Self { min: MinTrackSizingFunction::zero(), max: MaxTrackSizingFunction::zero() }
     }
@@ -551,27 +551,27 @@ pub enum TrackSizingFunction<U: Unit = f32> {
     /// Only valid if every track in template (not just the repitition) has a fixed size.
     Repeat(GridTrackRepetition, GridTrackVec<NonRepeatedTrackSizingFunction<U>>),
 }
-impl TrackSizingFunction {
+impl<U: Unit> TrackSizingFunction<U> {
     /// Whether the track definition is a auto-repeated fragment
     pub fn is_auto_repetition(&self) -> bool {
         matches!(self, Self::Repeat(GridTrackRepetition::AutoFit | GridTrackRepetition::AutoFill, _))
     }
 }
-impl TaffyAuto for TrackSizingFunction {
+impl<U: Unit> TaffyAuto for TrackSizingFunction<U> {
     const AUTO: Self = Self::Single(NonRepeatedTrackSizingFunction::AUTO);
 }
-impl TaffyMinContent for TrackSizingFunction {
+impl<U: Unit> TaffyMinContent for TrackSizingFunction<U> {
     const MIN_CONTENT: Self = Self::Single(NonRepeatedTrackSizingFunction::MIN_CONTENT);
 }
-impl TaffyMaxContent for TrackSizingFunction {
+impl<U: Unit> TaffyMaxContent for TrackSizingFunction<U> {
     const MAX_CONTENT: Self = Self::Single(NonRepeatedTrackSizingFunction::MAX_CONTENT);
 }
-impl TaffyFitContent for TrackSizingFunction {
-    fn fit_content(argument: LengthPercentage) -> Self {
+impl<U: Unit> TaffyFitContent<U> for TrackSizingFunction<U> {
+    fn fit_content(argument: LengthPercentage<U>) -> Self {
         Self::Single(NonRepeatedTrackSizingFunction::fit_content(argument))
     }
 }
-impl TaffyZero for TrackSizingFunction {
+impl<U: Unit> TaffyZero for TrackSizingFunction<U> {
     fn zero() -> Self {
         Self::Single(NonRepeatedTrackSizingFunction::zero())
     }
@@ -591,16 +591,16 @@ impl<U: Unit> FromFlex for TrackSizingFunction<U> {
         Self::Single(NonRepeatedTrackSizingFunction::from_flex(flex))
     }
 }
-impl From<MinMax<MinTrackSizingFunction, MaxTrackSizingFunction>> for TrackSizingFunction {
-    fn from(input: MinMax<MinTrackSizingFunction, MaxTrackSizingFunction>) -> Self {
+impl<U: Unit> From<MinMax<MinTrackSizingFunction<U>, MaxTrackSizingFunction<U>>> for TrackSizingFunction<U> {
+    fn from(input: MinMax<MinTrackSizingFunction<U>, MaxTrackSizingFunction<U>>) -> Self {
         Self::Single(input)
     }
 }
 
 // Grid extensions to the Style struct
-impl Style {
+impl<U: Unit> Style<U> {
     /// Get a grid item's row or column placement depending on the axis passed
-    pub(crate) fn grid_template_tracks(&self, axis: AbsoluteAxis) -> &GridTrackVec<TrackSizingFunction> {
+    pub(crate) fn grid_template_tracks(&self, axis: AbsoluteAxis) -> &GridTrackVec<TrackSizingFunction<U>> {
         match axis {
             AbsoluteAxis::Horizontal => &self.grid_template_columns,
             AbsoluteAxis::Vertical => &self.grid_template_rows,

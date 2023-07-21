@@ -120,7 +120,7 @@ impl<U: Unit> SizeBaselinesAndMargins<U> {
     }
 }
 
-impl<U: Unit> From<Size<U>> for SizeBaselinesAndMargins {
+impl<U: Unit> From<Size<U>> for SizeBaselinesAndMargins<U> {
     fn from(size: Size<U>) -> Self {
         Self {
             size,
@@ -146,13 +146,13 @@ pub struct Layout<U: Unit = f32> {
     pub location: Point<U>,
 }
 
-impl TaffyZero for Layout {
+impl<U: Unit> TaffyZero for Layout<U> {
     fn zero() -> Self {
         Layout { order: 0, size: Size::zero(), location: Point::zero() }
     }
 }
 
-impl Layout {
+impl<U: Unit> Layout<U> {
     /// Creates a new zero-[`Layout`].
     ///
     /// The Zero-layout has size and location set to ZERO.

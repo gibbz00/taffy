@@ -8,9 +8,6 @@ use crate::util::sys::{GridTrackVec, Vec};
 use crate::util::MaybeMath;
 use crate::util::ResolveOrZero;
 
-#[cfg(not(feature = "std"))]
-use num_traits::float::FloatCore;
-
 /// Compute the number of rows and columns in the explicit grid
 pub(crate) fn compute_explicit_grid_size_in_axis<U: Unit>(style: &Style<U>, axis: AbsoluteAxis) -> u16 {
     // Load the grid-template-rows or grid-template-columns definition (depending on the axis)

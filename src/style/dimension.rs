@@ -65,8 +65,8 @@ impl<U: Unit> FromPercent for LengthPercentageAuto<U> {
     }
 }
 
-impl From<LengthPercentage> for LengthPercentageAuto {
-    fn from(input: LengthPercentage) -> Self {
+impl<U: Unit> From<LengthPercentage<U>> for LengthPercentageAuto<U> {
+    fn from(input: LengthPercentage<U>) -> Self {
         match input {
             LengthPercentage::Length(value) => Self::Length(value),
             LengthPercentage::Percent(value) => Self::Percent(value),
@@ -127,9 +127,8 @@ impl<U: Unit> FromPercent for Dimension<U> {
         Self::Percent(percent.into())
     }
 }
-
-impl From<LengthPercentage> for Dimension {
-    fn from(input: LengthPercentage) -> Self {
+impl<U: Unit> From<LengthPercentage<U>> for Dimension<U> {
+    fn from(input: LengthPercentage<U>) -> Self {
         match input {
             LengthPercentage::Length(value) => Self::Length(value),
             LengthPercentage::Percent(value) => Self::Percent(value),
@@ -137,8 +136,8 @@ impl From<LengthPercentage> for Dimension {
     }
 }
 
-impl From<LengthPercentageAuto> for Dimension {
-    fn from(input: LengthPercentageAuto) -> Self {
+impl<U: Unit> From<LengthPercentageAuto<U>> for Dimension<U> {
+    fn from(input: LengthPercentageAuto<U>) -> Self {
         match input {
             LengthPercentageAuto::Length(value) => Self::Length(value),
             LengthPercentageAuto::Percent(value) => Self::Percent(value),

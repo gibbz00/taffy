@@ -56,14 +56,14 @@ pub trait LayoutAlgorithm<U: Unit = f32> {
         available_space: Size<AvailableSpace<U>>,
         sizing_mode: SizingMode,
         vertical_margins_are_collapsible: Line<bool>,
-    ) -> SizeBaselinesAndMargins;
+    ) -> SizeBaselinesAndMargins<U>;
 }
 
 /// The public interface to Taffy's hidden node algorithm implementation
 pub struct HiddenAlgorithm<U: Unit = f32> {
     unit: PhantomData<U>,
 }
-impl<U: Unit> LayoutAlgorithm for HiddenAlgorithm<U> {
+impl<U: Unit> LayoutAlgorithm<U> for HiddenAlgorithm<U> {
     const NAME: &'static str = "NONE";
 
     fn perform_layout(
@@ -74,7 +74,7 @@ impl<U: Unit> LayoutAlgorithm for HiddenAlgorithm<U> {
         _available_space: Size<AvailableSpace<U>>,
         _sizing_mode: SizingMode,
         _vertical_margins_are_collapsible: Line<bool>,
-    ) -> SizeBaselinesAndMargins {
+    ) -> SizeBaselinesAndMargins<U> {
         perform_hidden_layout(tree, node);
         SizeBaselinesAndMargins::hidden()
     }

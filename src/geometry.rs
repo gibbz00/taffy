@@ -2,7 +2,7 @@
 
 use crate::{prelude::TaffyZero, style::Dimension};
 use core::ops::{Add, Sub};
-use num_traits::{float::FloatCore, real::Real, Num, NumCast};
+use num_traits::{real::Real, Num, NumCast};
 
 #[cfg(feature = "flexbox")]
 use crate::style::FlexDirection;

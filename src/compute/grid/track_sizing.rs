@@ -53,7 +53,7 @@ impl ItemBatcher {
         } else {
             items
                 .iter()
-                .position(|item: &GridItem| {
+                .position(|item: &GridItem<U>| {
                     item.crosses_flexible_track(self.axis) || item.span(self.axis) > self.current_span
                 })
                 .unwrap_or(items.len())
@@ -157,7 +157,7 @@ where
 pub(super) fn cmp_by_cross_flex_then_span_then_start<U: Unit>(
     axis: AbstractAxis,
 ) -> impl FnMut(&GridItem<U>, &GridItem<U>) -> Ordering {
-    move |item_a: &GridItem, item_b: &GridItem| -> Ordering {
+    move |item_a: &GridItem<U>, item_b: &GridItem<U>| -> Ordering {
         match (item_a.crosses_flexible_track(axis), item_b.crosses_flexible_track(axis)) {
             (false, true) => Ordering::Less,
             (true, false) => Ordering::Greater,
@@ -181,7 +181,7 @@ pub(super) fn cmp_by_cross_flex_then_span_then_start<U: Unit>(
 pub(super) fn compute_alignment_gutter_adjustment<U: Unit>(
     alignment: AlignContent,
     axis_inner_node_size: Option<U>,
-    get_track_size_estimate: impl Fn(&GridTrack, Option<U>) -> Option<U>,
+    get_track_size_estimate: impl Fn(&GridTrack<U>, Option<U>) -> Option<U>,
     tracks: &[GridTrack<U>],
 ) -> U {
     if tracks.len() <= 1 {

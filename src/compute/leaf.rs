@@ -14,21 +14,21 @@ use crate::util::debug::NODE_LOGGER;
 
 /// Perform full layout on a leaf node
 pub(crate) fn perform_layout<U: Unit>(
-    style: &Style,
-    measurable: Option<&impl Measurable>,
+    style: &Style<U>,
+    measurable: Option<&impl Measurable<U>>,
     known_dimensions: Size<Option<U>>,
     parent_size: Size<Option<U>>,
     available_space: Size<AvailableSpace<U>>,
     sizing_mode: SizingMode,
     _vertical_margins_are_collapsible: Line<bool>,
-) -> SizeBaselinesAndMargins {
+) -> SizeBaselinesAndMargins<U> {
     compute(style, measurable, known_dimensions, parent_size, available_space, sizing_mode)
 }
 
 /// Measure a leaf node's size
 pub(crate) fn measure_size<U: Unit>(
-    style: &Style,
-    measurable: Option<&impl Measurable>,
+    style: &Style<U>,
+    measurable: Option<&impl Measurable<U>>,
     known_dimensions: Size<Option<U>>,
     parent_size: Size<Option<U>>,
     available_space: Size<AvailableSpace<U>>,
@@ -40,13 +40,13 @@ pub(crate) fn measure_size<U: Unit>(
 
 /// Compute the size of a leaf node (node with no children)
 pub fn compute<U: Unit>(
-    style: &Style,
-    measurable: Option<&impl Measurable>,
+    style: &Style<U>,
+    measurable: Option<&impl Measurable<U>>,
     known_dimensions: Size<Option<U>>,
     parent_size: Size<Option<U>>,
     available_space: Size<AvailableSpace<U>>,
     sizing_mode: SizingMode,
-) -> SizeBaselinesAndMargins {
+) -> SizeBaselinesAndMargins<U> {
     // Resolve node's preferred/min/max sizes (width/heights) against the available space (percentages resolve to pixel values)
     // For ContentSize mode, we pretend that the node has no size styles as these should be ignored.
     let (node_size, node_min_size, node_max_size, aspect_ratio) = match sizing_mode {

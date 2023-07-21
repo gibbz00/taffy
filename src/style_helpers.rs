@@ -1,8 +1,7 @@
 //! Helper functions which it make it easier to create instances of types in the `style` and `geometry` modules.
 use crate::{
     geometry::{Line, Point, Rect, Size, Unit},
-    prelude::Layout,
-    style::{AvailableSpace, Dimension, LengthPercentage, LengthPercentageAuto},
+    style::LengthPercentage,
 };
 
 #[cfg(feature = "grid")]
@@ -19,8 +18,12 @@ use core::fmt::Debug;
 
 /// Returns an auto-repeated track definition
 #[cfg(feature = "grid")]
-pub fn repeat<Input>(repetition_kind: Input, track_list: Vec<NonRepeatedTrackSizingFunction>) -> TrackSizingFunction
+pub fn repeat<Input, U>(
+    repetition_kind: Input,
+    track_list: Vec<NonRepeatedTrackSizingFunction<U>>,
+) -> TrackSizingFunction<U>
 where
+    U: Unit,
     Input: TryInto<GridTrackRepetition>,
     <Input as TryInto<GridTrackRepetition>>::Error: Debug,
 {
@@ -53,7 +56,7 @@ mod repeat_fn_tests {
 
 #[cfg(feature = "grid")]
 /// Returns a grid template containing `count` evenly sized tracks
-pub fn evenly_sized_tracks(count: u16) -> Vec<TrackSizingFunction> {
+pub fn evenly_sized_tracks<U: Unit>(count: u16) -> Vec<TrackSizingFunction<U>> {
     use crate::util::sys::new_vec_with_capacity;
     let mut repeated_tracks = new_vec_with_capacity(1);
     repeated_tracks.push(flex(1.0));
@@ -87,9 +90,10 @@ pub trait TaffyGridSpan {
 
 /// Returns a MinMax with min value of min and max value of max
 #[cfg(feature = "grid")]
-pub fn minmax<Output>(min: MinTrackSizingFunction, max: MaxTrackSizingFunction) -> Output
+pub fn minmax<U, Output>(min: MinTrackSizingFunction<U>, max: MaxTrackSizingFunction<U>) -> Output
 where
-    Output: From<MinMax<MinTrackSizingFunction, MaxTrackSizingFunction>>,
+    U: Unit,
+    Output: From<MinMax<MinTrackSizingFunction<U>, MaxTrackSizingFunction<U>>>,
 {
     MinMax { min, max }.into()
 }
@@ -99,7 +103,7 @@ where
 pub fn flex<U: Unit, Input, Output>(flex_fraction: Input) -> Output
 where
     Input: Into<U> + Copy,
-    Output: From<MinMax<MinTrackSizingFunction, MaxTrackSizingFunction>>,
+    Output: From<MinMax<MinTrackSizingFunction<U>, MaxTrackSizingFunction<U>>>,
 {
     MinMax { min: U::zero(), max: fr(flex_fraction.into()) }.into()
 }
@@ -276,66 +280,46 @@ impl<T: TaffyMaxContent> Rect<T> {
 
 /// Returns a value of the inferred type which represent a `fit-content(…)` value
 /// with the given argument.
-pub fn fit_content<T: TaffyFitContent>(argument: LengthPercentage) -> T {
+pub fn fit_content<U: Unit, T: TaffyFitContent<U>>(argument: LengthPercentage<U>) -> T {
     T::fit_content(argument)
 }
 
 /// Trait to create `fit-content(…)` values from plain numbers
-pub trait TaffyFitContent {
+pub trait TaffyFitContent<U: Unit> {
     /// Converts a LengthPercentage into Self
-    fn fit_content(argument: LengthPercentage) -> Self;
+    fn fit_content(argument: LengthPercentage<U>) -> Self;
 }
-impl<T: TaffyFitContent> TaffyFitContent for Point<T> {
-    fn fit_content(argument: LengthPercentage) -> Self {
+impl<U: Unit, T: TaffyFitContent<U>> TaffyFitContent<U> for Point<T> {
+    /// Returns a Point with x and y set to the same `fit-content(…)` value
+    /// with the given argument.
+    fn fit_content(argument: LengthPercentage<U>) -> Self {
         Point { x: T::fit_content(argument), y: T::fit_content(argument) }
     }
 }
-impl<T: TaffyFitContent> Point<T> {
-    /// Returns a Point with x and y set to the same `fit-content(…)` value
+impl<U: Unit, T: TaffyFitContent<U>> TaffyFitContent<U> for Line<T> {
+    /// Returns a Line with start and end set to the same `fit-content(…)` value
     /// with the given argument.
-    pub fn fit_content(argument: LengthPercentage) -> Self {
-        fit_content(argument)
-    }
-}
-impl<T: TaffyFitContent> TaffyFitContent for Line<T> {
-    fn fit_content(argument: LengthPercentage) -> Self {
+    fn fit_content(argument: LengthPercentage<U>) -> Self {
         Line { start: T::fit_content(argument), end: T::fit_content(argument) }
     }
 }
-impl<T: TaffyFitContent> Line<T> {
-    /// Returns a Line with start and end set to the same `fit-content(…)` value
+impl<U: Unit, T: TaffyFitContent<U>> TaffyFitContent<U> for Size<T> {
+    /// Returns a Size where with width and height set to the same `fit-content(…)` value
     /// with the given argument.
-    pub fn fit_content(argument: LengthPercentage) -> Self {
-        fit_content(argument)
-    }
-}
-impl<T: TaffyFitContent> TaffyFitContent for Size<T> {
-    fn fit_content(argument: LengthPercentage) -> Self {
+    fn fit_content(argument: LengthPercentage<U>) -> Self {
         Size { width: T::fit_content(argument), height: T::fit_content(argument) }
     }
 }
-impl<T: TaffyFitContent> Size<T> {
-    /// Returns a Size where with width and height set to the same `fit-content(…)` value
-    /// with the given argument.
-    pub fn fit_content(argument: LengthPercentage) -> Self {
-        fit_content(argument)
-    }
-}
-impl<T: TaffyFitContent> TaffyFitContent for Rect<T> {
-    fn fit_content(argument: LengthPercentage) -> Self {
+impl<U: Unit, T: TaffyFitContent<U>> TaffyFitContent<U> for Rect<T> {
+    /// Returns a Rect where the left, right, top and bottom values are all constant fit_content value of the contained type
+    /// (e.g. 2.1, Some(2.1), or Dimension::Length(2.1))
+    fn fit_content(argument: LengthPercentage<U>) -> Self {
         Rect {
             left: T::fit_content(argument),
             right: T::fit_content(argument),
             top: T::fit_content(argument),
             bottom: T::fit_content(argument),
         }
-    }
-}
-impl<T: TaffyFitContent> Rect<T> {
-    /// Returns a Rect where the left, right, top and bottom values are all constant fit_content value of the contained type
-    /// (e.g. 2.1, Some(2.1), or Dimension::Length(2.1))
-    pub fn fit_content(argument: LengthPercentage) -> Self {
-        fit_content(argument)
     }
 }
 

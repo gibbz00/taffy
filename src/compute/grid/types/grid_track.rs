@@ -28,10 +28,10 @@ pub(in super::super) struct GridTrack<U: Unit = f32> {
     pub is_collapsed: bool,
 
     /// The minimum track sizing function of the track
-    pub min_track_sizing_function: MinTrackSizingFunction,
+    pub min_track_sizing_function: MinTrackSizingFunction<U>,
 
     /// The maximum track sizing function of the track
-    pub max_track_sizing_function: MaxTrackSizingFunction,
+    pub max_track_sizing_function: MaxTrackSizingFunction<U>,
 
     /// The distance of the start of the track from the start of the grid container
     pub offset: U,
@@ -62,9 +62,9 @@ impl<U: Unit> GridTrack<U> {
     /// GridTrack constructor with all configuration parameters for the other constructors exposed
     fn new_with_kind(
         kind: GridTrackKind,
-        min_track_sizing_function: MinTrackSizingFunction,
-        max_track_sizing_function: MaxTrackSizingFunction,
-    ) -> GridTrack {
+        min_track_sizing_function: MinTrackSizingFunction<U>,
+        max_track_sizing_function: MaxTrackSizingFunction<U>,
+    ) -> Self {
         GridTrack {
             kind,
             is_collapsed: false,
@@ -83,14 +83,14 @@ impl<U: Unit> GridTrack<U> {
 
     /// Create new GridTrack representing an actual track (not a gutter)
     pub fn new(
-        min_track_sizing_function: MinTrackSizingFunction,
-        max_track_sizing_function: MaxTrackSizingFunction,
-    ) -> GridTrack {
+        min_track_sizing_function: MinTrackSizingFunction<U>,
+        max_track_sizing_function: MaxTrackSizingFunction<U>,
+    ) -> Self {
         Self::new_with_kind(GridTrackKind::Track, min_track_sizing_function, max_track_sizing_function)
     }
 
     /// Create a new GridTrack representing a gutter
-    pub fn gutter(size: LengthPercentage) -> GridTrack {
+    pub fn gutter(size: LengthPercentage<U>) -> Self {
         Self::new_with_kind(
             GridTrackKind::Gutter,
             MinTrackSizingFunction::Fixed(size),

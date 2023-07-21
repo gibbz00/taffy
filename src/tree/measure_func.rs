@@ -20,7 +20,7 @@ pub enum MeasureFunc<U: Unit = f32> {
 
     /// Stores a boxed function
     #[cfg(any(feature = "std", feature = "alloc"))]
-    Boxed(Box<dyn Measurable>),
+    Boxed(Box<dyn Measurable<U>>),
 }
 
 impl<U: Unit> Measurable<U> for MeasureFunc<U> {
