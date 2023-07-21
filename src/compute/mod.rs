@@ -14,9 +14,10 @@ pub(crate) mod flexbox;
 #[cfg(feature = "grid")]
 pub(crate) mod grid;
 
-use crate::geometry::{Line, Size};
+use crate::geometry::{Line, Size, Unit};
 use crate::style::AvailableSpace;
 use crate::tree::{Layout, LayoutTree, NodeId, SizeBaselinesAndMargins, SizingMode};
+use core::marker::PhantomData;
 
 #[cfg(feature = "block_layout")]
 pub use self::block::BlockAlgorithm;
@@ -31,69 +32,71 @@ pub use self::grid::CssGridAlgorithm;
 pub(crate) mod taffy_tree;
 
 /// A common interface that all Taffy layout algorithms conform to
-pub trait LayoutAlgorithm {
+pub trait LayoutAlgorithm<U: Unit = f32> {
     /// The name of the algorithm (mainly used for debug purposes)
     const NAME: &'static str;
 
     /// Compute the size of the node given the specified constraints
     fn measure_size(
-        tree: &mut impl LayoutTree,
+        tree: &mut impl LayoutTree<U>,
         node: NodeId,
-        known_dimensions: Size<Option<f32>>,
-        parent_size: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        parent_size: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         sizing_mode: SizingMode,
         vertical_margins_are_collapsible: Line<bool>,
-    ) -> Size<f32>;
+    ) -> Size<U>;
 
     /// Perform a full layout on the node given the specified constraints
     fn perform_layout(
-        tree: &mut impl LayoutTree,
+        tree: &mut impl LayoutTree<U>,
         node: NodeId,
-        known_dimensions: Size<Option<f32>>,
-        parent_size: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        parent_size: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         sizing_mode: SizingMode,
         vertical_margins_are_collapsible: Line<bool>,
     ) -> SizeBaselinesAndMargins;
 }
 
 /// The public interface to Taffy's hidden node algorithm implementation
-pub struct HiddenAlgorithm;
-impl LayoutAlgorithm for HiddenAlgorithm {
+pub struct HiddenAlgorithm<U: Unit = f32> {
+    unit: PhantomData<U>,
+}
+impl<U: Unit> LayoutAlgorithm for HiddenAlgorithm<U> {
     const NAME: &'static str = "NONE";
 
     fn perform_layout(
-        tree: &mut impl LayoutTree,
+        tree: &mut impl LayoutTree<U>,
         node: NodeId,
-        _known_dimensions: Size<Option<f32>>,
-        _parent_size: Size<Option<f32>>,
-        _available_space: Size<AvailableSpace>,
+        _known_dimensions: Size<Option<U>>,
+        _parent_size: Size<Option<U>>,
+        _available_space: Size<AvailableSpace<U>>,
         _sizing_mode: SizingMode,
         _vertical_margins_are_collapsible: Line<bool>,
     ) -> SizeBaselinesAndMargins {
         perform_hidden_layout(tree, node);
-        SizeBaselinesAndMargins::HIDDEN
+        SizeBaselinesAndMargins::hidden()
     }
 
     fn measure_size(
-        _tree: &mut impl LayoutTree,
+        _tree: &mut impl LayoutTree<U>,
         _node: NodeId,
-        _known_dimensions: Size<Option<f32>>,
-        _parent_size: Size<Option<f32>>,
-        _available_space: Size<AvailableSpace>,
+        _known_dimensions: Size<Option<U>>,
+        _parent_size: Size<Option<U>>,
+        _available_space: Size<AvailableSpace<U>>,
         _sizing_mode: SizingMode,
         _vertical_margins_are_collapsible: Line<bool>,
-    ) -> Size<f32> {
+    ) -> Size<U> {
         Size::ZERO
     }
 }
 
 /// Creates a layout for this node and its children, recursively.
 /// Each hidden node has zero size and is placed at the origin
-fn perform_hidden_layout(tree: &mut impl LayoutTree, node: NodeId) {
+fn perform_hidden_layout<U: Unit>(tree: &mut impl LayoutTree<U>, node: NodeId) {
     /// Recursive function to apply hidden layout to all descendents
-    fn perform_hidden_layout_inner(tree: &mut impl LayoutTree, node: NodeId, order: u32) {
+    fn perform_hidden_layout_inner<U: Unit>(tree: &mut impl LayoutTree<U>, node: NodeId, order: u32) {
         *tree.layout_mut(node) = Layout::with_order(order);
         for order in 0..tree.child_count(node) {
             perform_hidden_layout_inner(tree, tree.child(node, order), order as _);

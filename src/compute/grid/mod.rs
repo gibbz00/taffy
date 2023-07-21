@@ -1,17 +1,19 @@
 //! This module is a partial implementation of the CSS Grid Level 1 specification
 //! <https://www.w3.org/TR/css-grid-1>
-use crate::geometry::{AbsoluteAxis, AbstractAxis, InBothAbsAxis};
+use crate::geometry::{AbsoluteAxis, AbstractAxis, InBothAbsAxis, Unit};
 use crate::geometry::{Line, Point, Rect, Size};
 use crate::style::{AlignContent, AlignItems, AlignSelf, AvailableSpace, Display, Overflow, Position};
 use crate::style_helpers::*;
 use crate::tree::{Layout, RunMode, SizeBaselinesAndMargins, SizingMode};
 use crate::tree::{LayoutTree, NodeId};
-use crate::util::sys::{f32_max, GridTrackVec, Vec};
+use crate::util::sys::{GridTrackVec, Vec};
 use crate::util::MaybeMath;
 use crate::util::{MaybeResolve, ResolveOrZero};
 use alignment::{align_and_position_item, align_tracks};
+use core::marker::PhantomData;
 use explicit_grid::{compute_explicit_grid_size_in_axis, initialize_grid_tracks};
 use implicit_grid::compute_grid_size_estimate;
+use num_traits::real::Real;
 use placement::place_grid_items;
 use track_sizing::{
     determine_if_item_crosses_flexible_or_intrinsic_tracks, resolve_item_track_indexes, track_sizing_algorithm,
@@ -34,31 +36,33 @@ mod types;
 mod util;
 
 /// The public interface to Taffy's CSS Grid algorithm implementation
-pub struct CssGridAlgorithm;
-impl LayoutAlgorithm for CssGridAlgorithm {
+pub struct CssGridAlgorithm<U: Unit = f32> {
+    unit: PhantomData<U>,
+}
+impl<U: Unit> LayoutAlgorithm<U> for CssGridAlgorithm<U> {
     const NAME: &'static str = "CSS GRID";
 
     fn perform_layout(
-        tree: &mut impl LayoutTree,
+        tree: &mut impl LayoutTree<U>,
         node: NodeId,
-        known_dimensions: Size<Option<f32>>,
-        parent_size: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        parent_size: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         _sizing_mode: SizingMode,
         _vertical_margins_are_collapsible: Line<bool>,
-    ) -> SizeBaselinesAndMargins {
+    ) -> SizeBaselinesAndMargins<U> {
         compute(tree, node, known_dimensions, parent_size, available_space, RunMode::PerformLayout)
     }
 
     fn measure_size(
-        tree: &mut impl LayoutTree,
+        tree: &mut impl LayoutTree<U>,
         node: NodeId,
-        known_dimensions: Size<Option<f32>>,
-        parent_size: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        parent_size: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         _sizing_mode: SizingMode,
         _vertical_margins_are_collapsible: Line<bool>,
-    ) -> Size<f32> {
+    ) -> Size<U> {
         compute(tree, node, known_dimensions, parent_size, available_space, RunMode::ComputeSize).size
     }
 }
@@ -69,14 +73,14 @@ impl LayoutAlgorithm for CssGridAlgorithm {
 ///   - Placing items (which also resolves the implicit grid)
 ///   - Track (row/column) sizing
 ///   - Alignment & Final item placement
-pub fn compute(
-    tree: &mut impl LayoutTree,
+pub fn compute<U: Unit>(
+    tree: &mut impl LayoutTree<U>,
     node: NodeId,
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     run_mode: RunMode,
-) -> SizeBaselinesAndMargins {
+) -> SizeBaselinesAndMargins<U> {
     let get_child_styles_iter = |node| tree.children(node).map(|child_node: NodeId| tree.style(child_node));
     let style = tree.style(node).clone();
     let child_styles_iter = get_child_styles_iter(node);
@@ -219,10 +223,10 @@ pub fn compute(
         &mut columns,
         &mut rows,
         &mut items,
-        |track: &GridTrack, parent_size: Option<f32>| track.max_track_sizing_function.definite_value(parent_size),
+        |track: &GridTrack, parent_size: Option<U>| track.max_track_sizing_function.definite_value(parent_size),
         has_baseline_aligned_item,
     );
-    let initial_column_sum = columns.iter().map(|track| track.base_size).sum::<f32>();
+    let initial_column_sum = columns.iter().map(|track| track.base_size).sum::<U>();
     inner_node_size.width = inner_node_size.width.or_else(|| initial_column_sum.into());
 
     items.iter_mut().for_each(|item| item.available_space_cache = None);
@@ -242,7 +246,7 @@ pub fn compute(
         |track: &GridTrack, _| Some(track.base_size),
         false, // TODO: Support baseline alignment in the vertical axis
     );
-    let initial_row_sum = rows.iter().map(|track| track.base_size).sum::<f32>();
+    let initial_row_sum = rows.iter().map(|track| track.base_size).sum::<U>();
     inner_node_size.height = inner_node_size.height.or_else(|| initial_row_sum.into());
 
     // 6. Compute container size
@@ -260,8 +264,8 @@ pub fn compute(
             .max(padding_border_size.height),
     };
     let container_content_box = Size {
-        width: f32_max(0.0, container_border_box.width - content_box_inset.horizontal_axis_sum()),
-        height: f32_max(0.0, container_border_box.height - content_box_inset.vertical_axis_sum()),
+        width: Real::max(0.0, container_border_box.width - content_box_inset.horizontal_axis_sum()),
+        height: Real::max(0.0, container_border_box.height - content_box_inset.vertical_axis_sum()),
     };
 
     // If only the container's size has been requested
@@ -274,17 +278,15 @@ pub fn compute(
     // and therefore need to be re-resolved here based on the content-sized content box of the container
     if !available_grid_space.width.is_definite() {
         for column in &mut columns {
-            let min: Option<f32> =
-                column.min_track_sizing_function.resolved_percentage_size(container_content_box.width);
-            let max: Option<f32> =
-                column.max_track_sizing_function.resolved_percentage_size(container_content_box.width);
+            let min: Option<U> = column.min_track_sizing_function.resolved_percentage_size(container_content_box.width);
+            let max: Option<U> = column.max_track_sizing_function.resolved_percentage_size(container_content_box.width);
             column.base_size = column.base_size.maybe_clamp(min, max);
         }
     }
     if !available_grid_space.height.is_definite() {
         for row in &mut rows {
-            let min: Option<f32> = row.min_track_sizing_function.resolved_percentage_size(container_content_box.height);
-            let max: Option<f32> = row.max_track_sizing_function.resolved_percentage_size(container_content_box.height);
+            let min: Option<U> = row.min_track_sizing_function.resolved_percentage_size(container_content_box.height);
+            let max: Option<U> = row.max_track_sizing_function.resolved_percentage_size(container_content_box.height);
             row.base_size = row.base_size.maybe_clamp(min, max);
         }
     }
@@ -525,7 +527,7 @@ pub fn compute(
     }
 
     // Determine the grid container baseline(s) (currently we only compute the first baseline)
-    let grid_container_baseline: f32 = {
+    let grid_container_baseline: U = {
         // Sort items by row start position so that we can iterate items in groups which are in the same row
         items.sort_by_key(|item| item.row_indexes.start);
 

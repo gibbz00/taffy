@@ -4,7 +4,7 @@
 use slotmap::{DefaultKey, SlotMap, SparseSecondaryMap};
 
 use crate::compute::taffy_tree::{compute_layout, measure_node_size, perform_node_layout};
-use crate::geometry::{Line, Size};
+use crate::geometry::{Line, Size, Unit};
 use crate::prelude::LayoutTree;
 use crate::style::{AvailableSpace, Style};
 use crate::tree::{Layout, MeasureFunc, NodeData, NodeId, SizeBaselinesAndMargins, SizingMode};
@@ -25,12 +25,12 @@ impl Default for TaffyConfig {
 }
 
 /// A tree of UI nodes suitable for UI layout
-pub struct Taffy {
+pub struct Taffy<U: Unit = f32> {
     /// The [`NodeData`] for each node stored in this tree
-    pub(crate) nodes: SlotMap<DefaultKey, NodeData>,
+    pub(crate) nodes: SlotMap<DefaultKey, NodeData<U>>,
 
     /// Functions/closures that compute the intrinsic size of leaf nodes
-    pub(crate) measure_funcs: SparseSecondaryMap<DefaultKey, MeasureFunc>,
+    pub(crate) measure_funcs: SparseSecondaryMap<DefaultKey, MeasureFunc<U>>,
 
     /// The children of each node
     ///
@@ -46,9 +46,9 @@ pub struct Taffy {
     pub(crate) config: TaffyConfig,
 }
 
-impl Default for Taffy {
+impl<U: Unit> Default for Taffy<U> {
     fn default() -> Self {
-        Taffy::new()
+        Taffy::<U>::new()
     }
 }
 
@@ -62,7 +62,7 @@ impl<'a> Iterator for TaffyChildIter<'a> {
     }
 }
 
-impl LayoutTree for Taffy {
+impl<U: Unit> LayoutTree<U> for Taffy<U> {
     type ChildIter<'a> = TaffyChildIter<'a>;
 
     #[inline(always)]
@@ -76,17 +76,17 @@ impl LayoutTree for Taffy {
     }
 
     #[inline(always)]
-    fn style(&self, node: NodeId) -> &Style {
+    fn style(&self, node: NodeId) -> &Style<U> {
         &self.nodes[node.into()].style
     }
 
     #[inline(always)]
-    fn layout(&self, node: NodeId) -> &Layout {
+    fn layout(&self, node: NodeId) -> &Layout<U> {
         &self.nodes[node.into()].layout
     }
 
     #[inline(always)]
-    fn layout_mut(&mut self, node: NodeId) -> &mut Layout {
+    fn layout_mut(&mut self, node: NodeId) -> &mut Layout<U> {
         &mut self.nodes[node.into()].layout
     }
 
@@ -99,12 +99,12 @@ impl LayoutTree for Taffy {
     fn measure_child_size(
         &mut self,
         node: NodeId,
-        known_dimensions: Size<Option<f32>>,
-        parent_size: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        parent_size: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         sizing_mode: SizingMode,
         vertical_margins_are_collapsible: Line<bool>,
-    ) -> Size<f32> {
+    ) -> Size<U> {
         measure_node_size(
             self,
             node,
@@ -120,12 +120,12 @@ impl LayoutTree for Taffy {
     fn perform_child_layout(
         &mut self,
         node: NodeId,
-        known_dimensions: Size<Option<f32>>,
-        parent_size: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        parent_size: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         sizing_mode: SizingMode,
         vertical_margins_are_collapsible: Line<bool>,
-    ) -> SizeBaselinesAndMargins {
+    ) -> SizeBaselinesAndMargins<U> {
         perform_node_layout(
             self,
             node,
@@ -139,7 +139,7 @@ impl LayoutTree for Taffy {
 }
 
 #[allow(clippy::iter_cloned_collect)] // due to no-std support, we need to use `iter_cloned` instead of `collect`
-impl Taffy {
+impl<U: Unit> Taffy<U> {
     /// Creates a new [`Taffy`]
     ///
     /// The default capacity of a [`Taffy`] is 16 nodes.
@@ -173,7 +173,7 @@ impl Taffy {
     }
 
     /// Creates and adds a new unattached leaf node to the tree, and returns the node of the new node
-    pub fn new_leaf(&mut self, layout: Style) -> NodeId {
+    pub fn new_leaf(&mut self, layout: Style<U>) -> NodeId {
         let id = self.nodes.insert(NodeData::new(layout));
         let _ = self.children.insert(new_vec_with_capacity(0));
         let _ = self.parents.insert(None);
@@ -184,7 +184,7 @@ impl Taffy {
     /// Creates and adds a new unattached leaf node to the tree, and returns the node of the new node
     ///
     /// Creates and adds a new leaf node with a supplied [`MeasureFunc`]
-    pub fn new_leaf_with_measure(&mut self, layout: Style, measure: MeasureFunc) -> NodeId {
+    pub fn new_leaf_with_measure(&mut self, layout: Style<U>, measure: MeasureFunc<U>) -> NodeId {
         let mut data = NodeData::new(layout);
         data.needs_measure = true;
 
@@ -198,7 +198,7 @@ impl Taffy {
     }
 
     /// Creates and adds a new node, which may have any number of `children`
-    pub fn new_with_children(&mut self, layout: Style, children: &[NodeId]) -> NodeId {
+    pub fn new_with_children(&mut self, layout: Style<U>, children: &[NodeId]) -> NodeId {
         let id = NodeId::from(self.nodes.insert(NodeData::new(layout)));
 
         for child in children {
@@ -243,7 +243,7 @@ impl Taffy {
     }
 
     /// Sets the [`MeasureFunc`] of the associated node
-    pub fn set_measure(&mut self, node: NodeId, measure: Option<MeasureFunc>) {
+    pub fn set_measure(&mut self, node: NodeId, measure: Option<MeasureFunc<U>>) {
         let key = node.into();
         if let Some(measure) = measure {
             self.nodes[key].needs_measure = true;
@@ -375,18 +375,18 @@ impl Taffy {
     }
 
     /// Sets the [`Style`] of the provided `node`
-    pub fn set_style(&mut self, node: NodeId, style: Style) {
+    pub fn set_style(&mut self, node: NodeId, style: Style<U>) {
         self.nodes[node.into()].style = style;
         self.mark_dirty(node);
     }
 
     /// Gets the [`Style`] of the provided `node`
-    pub fn style(&self, node: NodeId) -> &Style {
+    pub fn style(&self, node: NodeId) -> &Style<U> {
         &self.nodes[node.into()].style
     }
 
     /// Return this node layout relative to its parent
-    pub fn layout(&self, node: NodeId) -> &Layout {
+    pub fn layout(&self, node: NodeId) -> &Layout<U> {
         &self.nodes[node.into()].layout
     }
 
@@ -397,8 +397,8 @@ impl Taffy {
     /// WARNING: this will stack-overflow if the tree contains a cycle
     pub fn mark_dirty(&mut self, node: NodeId) {
         /// WARNING: this will stack-overflow if the tree contains a cycle
-        fn mark_dirty_recursive(
-            nodes: &mut SlotMap<DefaultKey, NodeData>,
+        fn mark_dirty_recursive<U: Unit>(
+            nodes: &mut SlotMap<DefaultKey, NodeData<U>>,
             parents: &SlotMap<DefaultKey, Option<NodeId>>,
             node_key: DefaultKey,
         ) {
@@ -418,7 +418,7 @@ impl Taffy {
     }
 
     /// Updates the stored layout of the provided `node` and its children
-    pub fn compute_layout(&mut self, node: NodeId, available_space: Size<AvailableSpace>) {
+    pub fn compute_layout(&mut self, node: NodeId, available_space: Size<AvailableSpace<U>>) {
         compute_layout(self, node, available_space)
     }
 }
@@ -761,7 +761,7 @@ mod tests {
     fn compute_layout_should_produce_valid_result() {
         let mut taffy = Taffy::new();
         let node = taffy.new_leaf(Style {
-            size: Size { width: Dimension::Length(10f32), height: Dimension::Length(10f32) },
+            size: Size { width: Dimension::Length(10U), height: Dimension::Length(10U) },
             ..Default::default()
         });
         // TODO: improve test by asserting equalities
@@ -778,14 +778,14 @@ mod tests {
         let mut taffy = Taffy::new();
 
         let node = taffy.new_leaf(Style {
-            size: Size { width: Dimension::Percent(1f32), height: Dimension::Percent(1f32) },
+            size: Size { width: Dimension::Percent(1U), height: Dimension::Percent(1U) },
             ..Default::default()
         });
 
         let root = taffy.new_with_children(
             Style {
-                size: Size { width: Dimension::Length(100f32), height: Dimension::Length(100f32) },
-                padding: Rect { left: length(10f32), right: length(20f32), top: length(30f32), bottom: length(40f32) },
+                size: Size { width: Dimension::Length(100U), height: Dimension::Length(100U) },
+                padding: Rect { left: length(10U), right: length(20U), top: length(30U), bottom: length(40U) },
                 ..Default::default()
             },
             &[node],
@@ -802,7 +802,7 @@ mod tests {
         // - top-right:    {x: 20, y: 30}
         // - bottom-right: {x: 20, y: 40}
         let layout = taffy.layout(node);
-        assert_eq!(layout.location.x, 10f32);
-        assert_eq!(layout.location.y, 30f32);
+        assert_eq!(layout.location.x, 10U);
+        assert_eq!(layout.location.y, 30U);
     }
 }

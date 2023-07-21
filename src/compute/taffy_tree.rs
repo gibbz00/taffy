@@ -1,7 +1,7 @@
 //! Computation specific for the default `Taffy` tree implementation
 
 use crate::compute::{leaf, LayoutAlgorithm};
-use crate::geometry::{Line, Point, Size};
+use crate::geometry::{Line, Point, Size, Unit};
 use crate::style::{AvailableSpace, Display};
 use crate::tree::{Layout, LayoutTree, NodeId, RunMode, SizeBaselinesAndMargins, SizingMode, Taffy};
 use crate::util::sys::round;
@@ -19,10 +19,11 @@ use crate::compute::CssGridAlgorithm;
 use crate::util::debug::NODE_LOGGER;
 
 #[cfg(feature = "debug")]
-fn debug_log_node(
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+#[allow(clippy::missing_docs_in_private_items)]
+fn debug_log_node<U: Unit>(
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     run_mode: RunMode,
     sizing_mode: SizingMode,
 ) {
@@ -34,7 +35,7 @@ fn debug_log_node(
 }
 
 /// Updates the stored layout of the provided `node` and its children
-pub(crate) fn compute_layout(taffy: &mut Taffy, root: NodeId, available_space: Size<AvailableSpace>) {
+pub(crate) fn compute_layout<U: Unit>(taffy: &mut Taffy<U>, root: NodeId, available_space: Size<AvailableSpace<U>>) {
     // Recursively compute node layout
     let size_and_baselines = perform_node_layout(
         taffy,
@@ -56,15 +57,15 @@ pub(crate) fn compute_layout(taffy: &mut Taffy, root: NodeId, available_space: S
 }
 
 /// Perform full layout on a node. Chooses which algorithm to use based on the `display` property.
-pub(crate) fn perform_node_layout(
-    tree: &mut Taffy,
+pub(crate) fn perform_node_layout<U: Unit>(
+    tree: &mut Taffy<U>,
     node: NodeId,
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     sizing_mode: SizingMode,
     vertical_margins_are_collapsible: Line<bool>,
-) -> SizeBaselinesAndMargins {
+) -> SizeBaselinesAndMargins<U> {
     compute_node_layout(
         tree,
         node,
@@ -78,15 +79,15 @@ pub(crate) fn perform_node_layout(
 }
 
 /// Measure a node's size. Chooses which algorithm to use based on the `display` property.
-pub(crate) fn measure_node_size(
-    tree: &mut Taffy,
+pub(crate) fn measure_node_size<U: Unit>(
+    tree: &mut Taffy<U>,
     node: NodeId,
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     sizing_mode: SizingMode,
     vertical_margins_are_collapsible: Line<bool>,
-) -> Size<f32> {
+) -> Size<U> {
     compute_node_layout(
         tree,
         node,
@@ -102,16 +103,16 @@ pub(crate) fn measure_node_size(
 
 /// Updates the stored layout of the provided `node` and its children
 #[allow(clippy::too_many_arguments)]
-fn compute_node_layout(
-    tree: &mut Taffy,
+fn compute_node_layout<U: Unit>(
+    tree: &mut Taffy<U>,
     node: NodeId,
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     run_mode: RunMode,
     sizing_mode: SizingMode,
     vertical_margins_are_collapsible: Line<bool>,
-) -> SizeBaselinesAndMargins {
+) -> SizeBaselinesAndMargins<U> {
     #[cfg(any(feature = "debug", feature = "profile"))]
     NODE_LOGGER.push_node(node);
     #[cfg(feature = "debug")]
@@ -139,16 +140,16 @@ fn compute_node_layout(
 
     /// Inlined function generic over the LayoutAlgorithm to reduce code duplication
     #[inline(always)]
-    fn perform_computations<Algorithm: LayoutAlgorithm>(
-        tree: &mut impl LayoutTree,
+    fn perform_computations<U: Unit, Algorithm: LayoutAlgorithm<U>>(
+        tree: &mut impl LayoutTree<U>,
         node: NodeId,
-        known_dimensions: Size<Option<f32>>,
-        parent_size: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        parent_size: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         run_mode: RunMode,
         sizing_mode: SizingMode,
         vertical_margins_are_collapsible: Line<bool>,
-    ) -> SizeBaselinesAndMargins {
+    ) -> SizeBaselinesAndMargins<U> {
         #[cfg(feature = "debug")]
         NODE_LOGGER.log(Algorithm::NAME);
 
@@ -179,7 +180,7 @@ fn compute_node_layout(
     let computed_size_and_baselines = match (display_mode, has_children) {
         (Display::None, _) => {
             perform_taffy_tree_hidden_layout(tree, node);
-            SizeBaselinesAndMargins::HIDDEN
+            SizeBaselinesAndMargins::hidden()
         }
         #[cfg(feature = "block_layout")]
         (Display::Block, true) => perform_computations::<BlockAlgorithm>(
@@ -250,9 +251,9 @@ fn compute_node_layout(
 
 /// Creates a layout for this node and its children, recursively.
 /// Each hidden node has zero size and is placed at the origin
-fn perform_taffy_tree_hidden_layout(tree: &mut Taffy, node: NodeId) {
+fn perform_taffy_tree_hidden_layout<U: Unit>(tree: &mut Taffy<U>, node: NodeId) {
     /// Recursive function to apply hidden layout to all descendents
-    fn perform_hidden_layout_inner(tree: &mut Taffy, node: NodeId, order: u32) {
+    fn perform_hidden_layout_inner<U: Unit>(tree: &mut Taffy<U>, node: NodeId, order: u32) {
         let node_key = node.into();
         *tree.layout_mut(node) = Layout::with_order(order);
         tree.nodes[node_key].cache.clear();
@@ -273,7 +274,7 @@ fn perform_taffy_tree_hidden_layout(tree: &mut Taffy, node: NodeId) {
 ///     rather than rounding the width/height directly
 ///
 /// See <https://github.com/facebook/yoga/commit/aa5b296ac78f7a22e1aeaf4891243c6bb76488e2> for more context
-fn round_layout(tree: &mut impl LayoutTree, node: NodeId, abs_x: f32, abs_y: f32) {
+fn round_layout<U: Unit>(tree: &mut impl LayoutTree<U>, node: NodeId, abs_x: U, abs_y: U) {
     let layout = tree.layout_mut(node);
     let abs_x = abs_x + layout.location.x;
     let abs_y = abs_y + layout.location.y;

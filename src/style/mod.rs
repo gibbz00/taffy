@@ -20,7 +20,7 @@ pub use self::grid::{
     GridAutoFlow, GridPlacement, GridTrackRepetition, MaxTrackSizingFunction, MinTrackSizingFunction,
     NonRepeatedTrackSizingFunction, TrackSizingFunction,
 };
-use crate::geometry::{Point, Rect, Size};
+use crate::geometry::{Point, Rect, Size, Unit};
 
 #[cfg(feature = "grid")]
 use crate::geometry::Line;
@@ -138,9 +138,9 @@ impl Overflow {
     /// Returns `Some(0.0)` if the overflow mode would cause the automatic minimum size of a Flexbox or CSS Grid item
     /// to be `0`. Else returns None.
     #[inline(always)]
-    pub(crate) fn maybe_into_automatic_min_size(self) -> Option<f32> {
+    pub(crate) fn maybe_into_automatic_min_size<U: Unit>(self) -> Option<U> {
         match self.is_scroll_container() {
-            true => Some(0.0),
+            true => Some(U::zero()),
             false => None,
         }
     }
@@ -163,7 +163,7 @@ impl Overflow {
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(default))]
-pub struct Style {
+pub struct Style<U: Unit = f32> {
     /// What layout strategy should be used?
     pub display: Display,
 
@@ -171,40 +171,40 @@ pub struct Style {
     /// How children overflowing their container should affect layout
     pub overflow: Point<Overflow>,
     /// How much space (in points) should be reserved for the scrollbars of `Overflow::Scroll` and `Overflow::Auto` nodes.
-    pub scrollbar_width: f32,
+    pub scrollbar_width: U,
 
     // Position properties
     /// What should the `position` value of this struct use as a base offset?
     pub position: Position,
     /// How should the position of this element be tweaked relative to the layout defined?
     #[cfg_attr(feature = "serde", serde(default = "style_helpers::auto"))]
-    pub inset: Rect<LengthPercentageAuto>,
+    pub inset: Rect<LengthPercentageAuto<U>>,
 
     // Size properies
     /// Sets the initial size of the item
     #[cfg_attr(feature = "serde", serde(default = "style_helpers::auto"))]
-    pub size: Size<Dimension>,
+    pub size: Size<Dimension<U>>,
     /// Controls the minimum size of the item
     #[cfg_attr(feature = "serde", serde(default = "style_helpers::auto"))]
-    pub min_size: Size<Dimension>,
+    pub min_size: Size<Dimension<U>>,
     /// Controls the maximum size of the item
     #[cfg_attr(feature = "serde", serde(default = "style_helpers::auto"))]
-    pub max_size: Size<Dimension>,
+    pub max_size: Size<Dimension<U>>,
     /// Sets the preferred aspect ratio for the item
     ///
     /// The ratio is calculated as width divided by height.
-    pub aspect_ratio: Option<f32>,
+    pub aspect_ratio: Option<U>,
 
     // Spacing Properties
     /// How large should the margin be on each side?
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::zero"))]
-    pub margin: Rect<LengthPercentageAuto>,
+    #[cfg_attr(feature = "serde", serde(default = "Rect::zero"))]
+    pub margin: Rect<LengthPercentageAuto<U>>,
     /// How large should the padding be on each side?
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::zero"))]
-    pub padding: Rect<LengthPercentage>,
+    #[cfg_attr(feature = "serde", serde(default = "Rect::zero"))]
+    pub padding: Rect<LengthPercentage<U>>,
     /// How large should the border be on each side?
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::zero"))]
-    pub border: Rect<LengthPercentage>,
+    #[cfg_attr(feature = "serde", serde(default = "Rect::zero"))]
+    pub border: Rect<LengthPercentage<U>>,
 
     // Alignment properties
     /// How this node's children aligned in the cross/block axis?
@@ -229,8 +229,8 @@ pub struct Style {
     pub justify_content: Option<JustifyContent>,
     /// How large should the gaps between items in a grid or flex container be?
     #[cfg(any(feature = "flexbox", feature = "grid"))]
-    #[cfg_attr(feature = "serde", serde(default = "style_helpers::zero"))]
-    pub gap: Size<LengthPercentage>,
+    #[cfg_attr(feature = "serde", serde(default = "Size::zero"))]
+    pub gap: Size<LengthPercentage<U>>,
 
     // Flexbox properies
     /// Which direction does the main axis flow in?
@@ -241,17 +241,17 @@ pub struct Style {
     pub flex_wrap: FlexWrap,
     /// Sets the initial main axis size of the item
     #[cfg(feature = "flexbox")]
-    pub flex_basis: Dimension,
+    pub flex_basis: Dimension<U>,
     /// The relative rate at which this item grows when it is expanding to fill space
     ///
     /// 0.0 is the default value, and this value must be positive.
     #[cfg(feature = "flexbox")]
-    pub flex_grow: f32,
+    pub flex_grow: U,
     /// The relative rate at which this item shrinks when it is contracting to fit into space
     ///
     /// 1.0 is the default value, and this value must be positive.
     #[cfg(feature = "flexbox")]
-    pub flex_shrink: f32,
+    pub flex_shrink: U,
 
     // Grid container properies
     /// Defines the track sizing functions (widths) of the grid rows
@@ -279,68 +279,63 @@ pub struct Style {
     pub grid_column: Line<GridPlacement>,
 }
 
-impl Style {
-    /// The [`Default`] layout, in a form that can be used in const functions
-    pub const DEFAULT: Style = Style {
-        display: Display::DEFAULT,
-        overflow: Point { x: Overflow::Visible, y: Overflow::Visible },
-        scrollbar_width: 0.0,
-        position: Position::Relative,
-        inset: Rect::auto(),
-        margin: Rect::zero(),
-        padding: Rect::zero(),
-        border: Rect::zero(),
-        size: Size::auto(),
-        min_size: Size::auto(),
-        max_size: Size::auto(),
-        aspect_ratio: None,
-        #[cfg(any(feature = "flexbox", feature = "grid"))]
-        gap: Size::zero(),
-        // Aligment
-        #[cfg(any(feature = "flexbox", feature = "grid"))]
-        align_items: None,
-        #[cfg(any(feature = "flexbox", feature = "grid"))]
-        align_self: None,
-        #[cfg(feature = "grid")]
-        justify_items: None,
-        #[cfg(feature = "grid")]
-        justify_self: None,
-        #[cfg(any(feature = "flexbox", feature = "grid"))]
-        align_content: None,
-        #[cfg(any(feature = "flexbox", feature = "grid"))]
-        justify_content: None,
-        // Flexbox
-        #[cfg(feature = "flexbox")]
-        flex_direction: FlexDirection::Row,
-        #[cfg(feature = "flexbox")]
-        flex_wrap: FlexWrap::NoWrap,
-        #[cfg(feature = "flexbox")]
-        flex_grow: 0.0,
-        #[cfg(feature = "flexbox")]
-        flex_shrink: 1.0,
-        #[cfg(feature = "flexbox")]
-        flex_basis: Dimension::Auto,
-        // Grid
-        #[cfg(feature = "grid")]
-        grid_template_rows: GridTrackVec::new(),
-        #[cfg(feature = "grid")]
-        grid_template_columns: GridTrackVec::new(),
-        #[cfg(feature = "grid")]
-        grid_auto_rows: GridTrackVec::new(),
-        #[cfg(feature = "grid")]
-        grid_auto_columns: GridTrackVec::new(),
-        #[cfg(feature = "grid")]
-        grid_auto_flow: GridAutoFlow::Row,
-        #[cfg(feature = "grid")]
-        grid_row: Line { start: GridPlacement::Auto, end: GridPlacement::Auto },
-        #[cfg(feature = "grid")]
-        grid_column: Line { start: GridPlacement::Auto, end: GridPlacement::Auto },
-    };
-}
-
-impl Default for Style {
+impl<U: Unit> Default for Style<U> {
     fn default() -> Self {
-        Style::DEFAULT
+        Style {
+            display: Display::DEFAULT,
+            overflow: Point { x: Overflow::Visible, y: Overflow::Visible },
+            scrollbar_width: U::zero(),
+            position: Position::Relative,
+            inset: Rect::auto(),
+            margin: Rect::zero(),
+            padding: Rect::zero(),
+            border: Rect::zero(),
+            size: Size::auto(),
+            min_size: Size::auto(),
+            max_size: Size::auto(),
+            aspect_ratio: None,
+            #[cfg(any(feature = "flexbox", feature = "grid"))]
+            gap: Size::zero(),
+            // Aligment
+            #[cfg(any(feature = "flexbox", feature = "grid"))]
+            align_items: None,
+            #[cfg(any(feature = "flexbox", feature = "grid"))]
+            align_self: None,
+            #[cfg(feature = "grid")]
+            justify_items: None,
+            #[cfg(feature = "grid")]
+            justify_self: None,
+            #[cfg(any(feature = "flexbox", feature = "grid"))]
+            align_content: None,
+            #[cfg(any(feature = "flexbox", feature = "grid"))]
+            justify_content: None,
+            // Flexbox
+            #[cfg(feature = "flexbox")]
+            flex_direction: FlexDirection::Row,
+            #[cfg(feature = "flexbox")]
+            flex_wrap: FlexWrap::NoWrap,
+            #[cfg(feature = "flexbox")]
+            flex_grow: U::zero(),
+            #[cfg(feature = "flexbox")]
+            flex_shrink: U::one(),
+            #[cfg(feature = "flexbox")]
+            flex_basis: Dimension::Auto,
+            // Grid
+            #[cfg(feature = "grid")]
+            grid_template_rows: GridTrackVec::new(),
+            #[cfg(feature = "grid")]
+            grid_template_columns: GridTrackVec::new(),
+            #[cfg(feature = "grid")]
+            grid_auto_rows: GridTrackVec::new(),
+            #[cfg(feature = "grid")]
+            grid_auto_columns: GridTrackVec::new(),
+            #[cfg(feature = "grid")]
+            grid_auto_flow: GridAutoFlow::Row,
+            #[cfg(feature = "grid")]
+            grid_row: Line { start: GridPlacement::Auto, end: GridPlacement::Auto },
+            #[cfg(feature = "grid")]
+            grid_column: Line { start: GridPlacement::Auto, end: GridPlacement::Auto },
+        }
     }
 }
 

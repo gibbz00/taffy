@@ -1,7 +1,8 @@
 //! Helper functions which it make it easier to create instances of types in the `style` and `geometry` modules.
 use crate::{
-    geometry::{Line, Point, Rect, Size},
-    style::LengthPercentage,
+    geometry::{Line, Point, Rect, Size, Unit},
+    prelude::Layout,
+    style::{AvailableSpace, Dimension, LengthPercentage, LengthPercentageAuto},
 };
 
 #[cfg(feature = "grid")]
@@ -95,69 +96,18 @@ where
 
 /// Shorthand for minmax(0, Nfr). Probably what you want if you want exactly evenly sized tracks.
 #[cfg(feature = "grid")]
-pub fn flex<Input, Output>(flex_fraction: Input) -> Output
+pub fn flex<U: Unit, Input, Output>(flex_fraction: Input) -> Output
 where
-    Input: Into<f32> + Copy,
+    Input: Into<U> + Copy,
     Output: From<MinMax<MinTrackSizingFunction, MaxTrackSizingFunction>>,
 {
-    MinMax { min: zero(), max: fr(flex_fraction.into()) }.into()
-}
-
-/// Returns the zero value for that type
-pub const fn zero<T: TaffyZero>() -> T {
-    T::ZERO
+    MinMax { min: U::zero(), max: fr(flex_fraction.into()) }.into()
 }
 
 /// Trait to abstract over zero values
 pub trait TaffyZero {
     /// The zero value for type implementing TaffyZero
-    const ZERO: Self;
-}
-impl TaffyZero for f32 {
-    const ZERO: f32 = 0.0;
-}
-impl<T: TaffyZero> TaffyZero for Option<T> {
-    const ZERO: Option<T> = Some(T::ZERO);
-}
-impl<T: TaffyZero> TaffyZero for Point<T> {
-    const ZERO: Point<T> = Point { x: T::ZERO, y: T::ZERO };
-}
-impl<T: TaffyZero> Point<T> {
-    /// Returns a Point where both the x and y values are the zero value of the contained type
-    /// (e.g. 0.0, Some(0.0), or Dimension::Length(0.0))
-    pub const fn zero() -> Self {
-        zero::<Self>()
-    }
-}
-impl<T: TaffyZero> TaffyZero for Line<T> {
-    const ZERO: Line<T> = Line { start: T::ZERO, end: T::ZERO };
-}
-impl<T: TaffyZero> Line<T> {
-    /// Returns a Line where both the start and end values are the zero value of the contained type
-    /// (e.g. 0.0, Some(0.0), or Dimension::Length(0.0))
-    pub const fn zero() -> Self {
-        zero::<Self>()
-    }
-}
-impl<T: TaffyZero> TaffyZero for Size<T> {
-    const ZERO: Size<T> = Size { width: T::ZERO, height: T::ZERO };
-}
-impl<T: TaffyZero> Size<T> {
-    /// Returns a Size where both the width and height values are the zero value of the contained type
-    /// (e.g. 0.0, Some(0.0), or Dimension::Length(0.0))
-    pub const fn zero() -> Self {
-        zero::<Self>()
-    }
-}
-impl<T: TaffyZero> TaffyZero for Rect<T> {
-    const ZERO: Rect<T> = Rect { left: T::ZERO, right: T::ZERO, top: T::ZERO, bottom: T::ZERO };
-}
-impl<T: TaffyZero> Rect<T> {
-    /// Returns a Rect where the left, right, top, and bottom values are all the zero value of the contained type
-    /// (e.g. 0.0, Some(0.0), or Dimension::Length(0.0))
-    pub const fn zero() -> Self {
-        zero::<Self>()
-    }
+    fn zero() -> Self;
 }
 
 /// Returns the auto value for that type

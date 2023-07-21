@@ -1,6 +1,7 @@
 //! UI node types and related data structures.
 //!
 //! Layouts are composed of multiple nodes, which live in a tree-like data structure.
+use crate::geometry::Unit;
 use crate::style::Style;
 use crate::tree::Cache;
 use crate::tree::Layout;
@@ -65,23 +66,23 @@ impl From<NodeId> for DefaultKey {
 /// Layout information for a given [`Node`](crate::node::Node)
 ///
 /// Stored in a [`Taffy`].
-pub(crate) struct NodeData {
+pub(crate) struct NodeData<U: Unit = f32> {
     /// The layout strategy used by this node
-    pub(crate) style: Style,
+    pub(crate) style: Style<U>,
     /// The results of the layout computation
-    pub(crate) layout: Layout,
+    pub(crate) layout: Layout<U>,
 
     /// Should we try and measure this node?
     pub(crate) needs_measure: bool,
 
     /// The cached results of the layout computation
-    pub(crate) cache: Cache,
+    pub(crate) cache: Cache<U>,
 }
 
-impl NodeData {
+impl<U: Unit> NodeData<U> {
     /// Create the data for a new node
     #[must_use]
-    pub const fn new(style: Style) -> Self {
+    pub const fn new(style: Style<U>) -> Self {
         Self { style, cache: Cache::new(), layout: Layout::new(), needs_measure: false }
     }
 

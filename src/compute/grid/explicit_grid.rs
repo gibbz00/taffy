@@ -1,7 +1,7 @@
 //! Helper functions for intialising GridTrack's from styles
 //! This mainly consists of evaluating GridAutoTracks
 use super::types::{GridTrack, TrackCounts};
-use crate::geometry::AbsoluteAxis;
+use crate::geometry::{AbsoluteAxis, Unit};
 use crate::style::{GridTrackRepetition, LengthPercentage, NonRepeatedTrackSizingFunction, Style, TrackSizingFunction};
 use crate::style_helpers::TaffyAuto;
 use crate::util::sys::{GridTrackVec, Vec};
@@ -12,7 +12,7 @@ use crate::util::ResolveOrZero;
 use num_traits::float::FloatCore;
 
 /// Compute the number of rows and columns in the explicit grid
-pub(crate) fn compute_explicit_grid_size_in_axis(style: &Style, axis: AbsoluteAxis) -> u16 {
+pub(crate) fn compute_explicit_grid_size_in_axis<U: Unit>(style: &Style<U>, axis: AbsoluteAxis) -> u16 {
     // Load the grid-template-rows or grid-template-columns definition (depending on the axis)
     let template = style.grid_template_tracks(axis);
 
@@ -108,26 +108,29 @@ pub(crate) fn compute_explicit_grid_size_in_axis(style: &Style, axis: AbsoluteAx
 
             /// ...treating each track as its max track sizing function if that is definite or as its minimum track sizing function
             /// otherwise, flooring the max track sizing function by the min track sizing function if both are definite
-            fn track_definite_value(sizing_function: &NonRepeatedTrackSizingFunction, parent_size: Option<f32>) -> f32 {
+            fn track_definite_value<U: Unit>(
+                sizing_function: &NonRepeatedTrackSizingFunction<U>,
+                parent_size: Option<U>,
+            ) -> U {
                 let max_size = sizing_function.max.definite_value(parent_size);
                 let min_size = sizing_function.max.definite_value(parent_size);
                 max_size.map(|max| max.maybe_min(min_size)).or(min_size).unwrap()
             }
 
-            let non_repeating_track_used_space: f32 = template
+            let non_repeating_track_used_space: U = template
                 .iter()
                 .map(|track_def| {
                     use GridTrackRepetition::{AutoFill, AutoFit, Count};
                     match track_def {
                         TrackSizingFunction::Single(sizing_function) => {
-                            track_definite_value(sizing_function, parent_size)
+                            track_definite_value(&sizing_function, parent_size)
                         }
                         TrackSizingFunction::Repeat(Count(count), repeated_tracks) => {
                             let sum = repeated_tracks
                                 .iter()
                                 .map(|sizing_function| track_definite_value(sizing_function, parent_size))
-                                .sum::<f32>();
-                            sum * (*count as f32)
+                                .sum::<U>();
+                            sum * (*count as U)
                         }
                         TrackSizingFunction::Repeat(AutoFit | AutoFill, _) => 0.0,
                     }
@@ -136,23 +139,23 @@ pub(crate) fn compute_explicit_grid_size_in_axis(style: &Style, axis: AbsoluteAx
             let gap_size = style.gap.get_abs(axis).resolve_or_zero(Some(inner_container_size));
 
             // Compute the amount of space that a single repetition of the repeated track list takes
-            let per_repetition_track_used_space: f32 = repetition_definition
+            let per_repetition_track_used_space: U = repetition_definition
                 .iter()
                 .map(|sizing_function| track_definite_value(sizing_function, parent_size))
-                .sum::<f32>();
+                .sum::<U>();
 
             // We special case the first repetition here because the number of gaps in the first repetition
             // depends on the number of non-repeating tracks in the template
             let first_repetition_and_non_repeating_tracks_used_space = non_repeating_track_used_space
                 + per_repetition_track_used_space
-                + ((non_auto_repeating_track_count + repetition_track_count).saturating_sub(1) as f32 * gap_size);
+                + ((non_auto_repeating_track_count + repetition_track_count).saturating_sub(1) as U * gap_size);
 
             // If a single repetition already overflows the container then we return 1 as the repetition count
             // (the number of repetitions is floored at 1)
             if first_repetition_and_non_repeating_tracks_used_space > inner_container_size {
                 1u16
             } else {
-                let per_repetition_gap_used_space = (repetition_definition.len() as f32) * gap_size;
+                let per_repetition_gap_used_space = (repetition_definition.len() as U) * gap_size;
                 let per_repetition_used_space = per_repetition_track_used_space + per_repetition_gap_used_space;
                 let num_repetition_that_fit = (inner_container_size
                     - first_repetition_and_non_repeating_tracks_used_space)
@@ -178,12 +181,12 @@ pub(crate) fn compute_explicit_grid_size_in_axis(style: &Style, axis: AbsoluteAx
 
 /// Resolve the track sizing functions of explicit tracks, automatically created tracks, and gutters
 /// given a set of track counts and all of the relevant styles
-pub(super) fn initialize_grid_tracks(
-    tracks: &mut Vec<GridTrack>,
+pub(super) fn initialize_grid_tracks<U: Unit>(
+    tracks: &mut Vec<GridTrack<U>>,
     counts: TrackCounts,
-    track_template: &GridTrackVec<TrackSizingFunction>,
-    auto_tracks: &Vec<NonRepeatedTrackSizingFunction>,
-    gap: LengthPercentage,
+    track_template: &GridTrackVec<TrackSizingFunction<U>>,
+    auto_tracks: &Vec<NonRepeatedTrackSizingFunction<U>>,
+    gap: LengthPercentage<U>,
     track_has_items: impl Fn(usize) -> bool,
 ) {
     // Clear vector (in case this is a re-layout), reserve space for all tracks ahead of time to reduce allocations,
@@ -271,11 +274,11 @@ pub(super) fn initialize_grid_tracks(
 }
 
 /// Utility function for repeating logic of creating implicit tracks
-fn create_implicit_tracks(
-    tracks: &mut Vec<GridTrack>,
+fn create_implicit_tracks<U: Unit>(
+    tracks: &mut Vec<GridTrack<U>>,
     count: u16,
-    mut auto_tracks_iter: impl Iterator<Item = NonRepeatedTrackSizingFunction>,
-    gap: LengthPercentage,
+    mut auto_tracks_iter: impl Iterator<Item = NonRepeatedTrackSizingFunction<U>>,
+    gap: LengthPercentage<U>,
 ) {
     for _ in 0..count {
         let track_def = auto_tracks_iter.next().unwrap();

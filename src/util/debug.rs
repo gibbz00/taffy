@@ -1,17 +1,18 @@
 #![allow(dead_code)]
 
+use crate::geometry::Unit;
 use crate::tree::NodeId;
 use crate::{style, LayoutTree};
 use core::fmt::{Debug, Display, Write};
 use std::sync::Mutex;
 
 /// Prints a debug representation of the computed layout for a tree of nodes, starting with the passed root node.
-pub fn print_tree(tree: &impl LayoutTree, root: NodeId) {
+pub fn print_tree<U: Unit>(tree: &impl LayoutTree<U>, root: NodeId) {
     println!("TREE");
     print_node(tree, root, false, String::new());
 }
 
-fn print_node(tree: &impl LayoutTree, node: NodeId, has_sibling: bool, lines_string: String) {
+fn print_node<U: Unit>(tree: &impl LayoutTree<U>, node: NodeId, has_sibling: bool, lines_string: String) {
     let layout = &tree.layout(node);
     let style = &tree.style(node);
     let num_children = tree.child_count(node);

@@ -1,6 +1,6 @@
 //! This module is not required for spec compliance, but is used as a performance optimisation
 //! to reduce the number of allocations required when creating a grid.
-use crate::geometry::Line;
+use crate::geometry::{Line, Unit};
 use crate::style::{GenericGridPlacement, GridPlacement, Style};
 use core::cmp::{max, min};
 
@@ -15,10 +15,10 @@ use super::OriginZeroLine;
 ///     in ways which are impossible to predict until the auto-placement algorithm is run.
 ///
 /// Note that this function internally mixes use of grid track numbers and grid line numbers
-pub(crate) fn compute_grid_size_estimate<'a>(
+pub(crate) fn compute_grid_size_estimate<'a, U: Unit + 'a>(
     explicit_col_count: u16,
     explicit_row_count: u16,
-    child_styles_iter: impl Iterator<Item = &'a Style>,
+    child_styles_iter: impl Iterator<Item = &'a Style<U>>,
 ) -> (TrackCounts, TrackCounts) {
     // Iterate over children, producing an estimate of the min and max grid lines (in origin-zero coordinates where)
     // along with the span of each item
@@ -60,8 +60,8 @@ pub(crate) fn compute_grid_size_estimate<'a>(
 ///
 /// Min and max grid lines are returned in origin-zero coordinates)
 /// The span is measured in tracks spanned
-fn get_known_child_positions<'a>(
-    children_iter: impl Iterator<Item = &'a Style>,
+fn get_known_child_positions<'a, U: Unit + 'a>(
+    children_iter: impl Iterator<Item = &'a Style<U>>,
     explicit_col_count: u16,
     explicit_row_count: u16,
 ) -> (OriginZeroLine, OriginZeroLine, u16, OriginZeroLine, OriginZeroLine, u16) {

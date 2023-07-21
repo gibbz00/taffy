@@ -1,9 +1,10 @@
 //! Final data structures that represent the high-level UI layout
 
 use crate::{
-    geometry::{Point, Size},
-    util::sys::{f32_max, f32_min},
+    geometry::{Point, Size, Unit},
+    prelude::TaffyZero,
 };
+use num_traits::real::Real;
 
 /// Whether we are performing a full layout, or we merely need to size the node
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -26,46 +27,48 @@ pub enum SizingMode {
 
 /// A set of margins that are available for collapsing with for block layout's margin collapsing
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct CollapsibleMarginSet {
+pub struct CollapsibleMarginSet<U: Unit = f32> {
     /// The largest positive margin
-    positive: f32,
+    positive: U,
     /// The smallest negative margin (with largest absolute value)
-    negative: f32,
+    negative: U,
 }
 
-impl CollapsibleMarginSet {
+impl<U: Unit> CollapsibleMarginSet<U> {
     /// A default margin set with no collapsible margins
-    pub const ZERO: Self = Self { positive: 0.0, negative: 0.0 };
+    pub fn zero() -> Self {
+        Self { positive: U::zero(), negative: U::zero() }
+    }
 
     /// Create a set from a single margin
-    pub fn from_margin(margin: f32) -> Self {
-        if margin >= 0.0 {
-            Self { positive: margin, negative: 0.0 }
+    pub fn from_margin(margin: U) -> Self {
+        if margin.is_positive() {
+            Self { positive: margin, negative: U::zero() }
         } else {
-            Self { positive: 0.0, negative: margin }
+            Self { positive: U::zero(), negative: margin }
         }
     }
 
     /// Collapse a single margin with this set
-    pub fn collapse_with_margin(mut self, margin: f32) -> Self {
-        if margin >= 0.0 {
-            self.positive = f32_max(self.positive, margin);
+    pub fn collapse_with_margin(mut self, margin: U) -> Self {
+        if margin.is_positive() {
+            self.positive = Real::max(self.positive, margin);
         } else {
-            self.negative = f32_min(self.negative, margin);
+            self.negative = Real::min(self.negative, margin);
         }
         self
     }
 
     /// Collapse another margin set with this set
-    pub fn collapse_with_set(mut self, other: CollapsibleMarginSet) -> Self {
-        self.positive = f32_max(self.positive, other.positive);
-        self.negative = f32_min(self.negative, other.negative);
+    pub fn collapse_with_set(mut self, other: CollapsibleMarginSet<U>) -> Self {
+        self.positive = Real::max(self.positive, other.positive);
+        self.negative = Real::min(self.negative, other.negative);
         self
     }
 
     /// Resolve the resultant margin from this set once all collapsible margins
     /// have been collapsed into it
-    pub fn resolve(&self) -> f32 {
+    pub fn resolve(&self) -> U {
         self.positive + self.negative
     }
 }
@@ -77,51 +80,53 @@ impl CollapsibleMarginSet {
 /// If your node does not have a baseline (or you are unsure how to compute it), then simply return `Point::NONE`
 /// for the first_baselines field
 #[derive(Debug, Copy, Clone)]
-pub struct SizeBaselinesAndMargins {
+pub struct SizeBaselinesAndMargins<U: Unit = f32> {
     /// The size of the node
-    pub size: Size<f32>,
+    pub size: Size<U>,
     /// The first baseline of the node in each dimension, if any
-    pub first_baselines: Point<Option<f32>>,
+    pub first_baselines: Point<Option<U>>,
     /// Top margin that can be collapsed with. This is used for CSS block layout and can be set to
     /// `CollapsibleMarginSet::ZERO` for other layout modes that don't support margin collapsing
-    pub top_margin: CollapsibleMarginSet,
+    pub top_margin: CollapsibleMarginSet<U>,
     /// Bottom margin that can be collapsed with. This is used for CSS block layout and can be set to
     /// `CollapsibleMarginSet::ZERO` for other layout modes that don't support margin collapsing
-    pub bottom_margin: CollapsibleMarginSet,
+    pub bottom_margin: CollapsibleMarginSet<U>,
     /// Whether margins can be collapsed through this node. This is used for CSS block layout and can
     /// be set to `false` for other layout modes that don't support margin collapsing
     pub margins_can_collapse_through: bool,
 }
 
-impl SizeBaselinesAndMargins {
+impl<U: Unit> SizeBaselinesAndMargins<U> {
     /// An all-zero `SizeBaselinesAndMargins` for hidden nodes
-    pub const HIDDEN: Self = Self {
-        size: Size::ZERO,
-        first_baselines: Point::NONE,
-        top_margin: CollapsibleMarginSet::ZERO,
-        bottom_margin: CollapsibleMarginSet::ZERO,
-        margins_can_collapse_through: false,
-    };
+    pub fn hidden() -> Self {
+        Self {
+            size: Size::zero(),
+            first_baselines: None,
+            top_margin: CollapsibleMarginSet::zero(),
+            bottom_margin: CollapsibleMarginSet::zero(),
+            margins_can_collapse_through: false,
+        }
+    }
 
     /// Constructor to create a `SizeBaselinesAndMargins` from just the size and baselines
-    pub fn from_size_and_baselines(size: Size<f32>, first_baselines: Point<Option<f32>>) -> Self {
+    pub fn from_size_and_baselines(size: Size<U>, first_baselines: Point<Option<U>>) -> Self {
         Self {
             size,
             first_baselines,
-            top_margin: CollapsibleMarginSet::ZERO,
-            bottom_margin: CollapsibleMarginSet::ZERO,
+            top_margin: CollapsibleMarginSet::zero(),
+            bottom_margin: CollapsibleMarginSet::zero(),
             margins_can_collapse_through: false,
         }
     }
 }
 
-impl From<Size<f32>> for SizeBaselinesAndMargins {
-    fn from(size: Size<f32>) -> Self {
+impl<U: Unit> From<Size<U>> for SizeBaselinesAndMargins {
+    fn from(size: Size<U>) -> Self {
         Self {
             size,
             first_baselines: Point::NONE,
-            top_margin: CollapsibleMarginSet::ZERO,
-            bottom_margin: CollapsibleMarginSet::ZERO,
+            top_margin: CollapsibleMarginSet::zero(),
+            bottom_margin: CollapsibleMarginSet::zero(),
             margins_can_collapse_through: false,
         }
     }
@@ -129,16 +134,22 @@ impl From<Size<f32>> for SizeBaselinesAndMargins {
 
 /// The final result of a layout algorithm for a single node.
 #[derive(Debug, Copy, Clone)]
-pub struct Layout {
+pub struct Layout<U: Unit = f32> {
     /// The relative ordering of the node
     ///
     /// Nodes with a higher order should be rendered on top of those with a lower order.
     /// This is effectively a topological sort of each tree.
     pub order: u32,
     /// The width and height of the node
-    pub size: Size<f32>,
+    pub size: Size<U>,
     /// The top-left corner of the node
-    pub location: Point<f32>,
+    pub location: Point<U>,
+}
+
+impl TaffyZero for Layout {
+    fn zero() -> Self {
+        Layout { order: 0, size: Size::zero(), location: Point::zero() }
+    }
 }
 
 impl Layout {
@@ -148,8 +159,8 @@ impl Layout {
     /// The `order` value of this layout is set to the minimum value of 0.
     /// This means it should be rendered below all other [`Layout`]s.
     #[must_use]
-    pub const fn new() -> Self {
-        Self { order: 0, size: Size::zero(), location: Point::ZERO }
+    pub fn new() -> Self {
+        Self::zero()
     }
 
     /// Creates a new zero-[`Layout`] with the supplied `order` value.
@@ -157,7 +168,7 @@ impl Layout {
     /// Nodes with a higher order should be rendered on top of those with a lower order.
     /// The Zero-layout has size and location set to ZERO.
     #[must_use]
-    pub const fn with_order(order: u32) -> Self {
-        Self { order, size: Size::zero(), location: Point::ZERO }
+    pub fn with_order(order: u32) -> Self {
+        Self { order, ..Self::zero() }
     }
 }

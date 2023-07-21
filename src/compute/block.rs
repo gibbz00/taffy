@@ -1,32 +1,36 @@
 //! Computes the CSS block layout algorithm in the case that the block container being laid out contains only block-level boxes
+use num_traits::real::Real;
+
 use crate::compute::LayoutAlgorithm;
-use crate::geometry::{Line, Point, Rect, Size};
+use crate::geometry::{Line, Point, Rect, Size, Unit};
 use crate::style::{AvailableSpace, Display, LengthPercentageAuto, Overflow, Position};
 use crate::style_helpers::TaffyMaxContent;
 use crate::tree::{CollapsibleMarginSet, Layout, RunMode, SizeBaselinesAndMargins, SizingMode};
 use crate::tree::{LayoutTree, NodeId};
-use crate::util::sys::f32_max;
 use crate::util::sys::Vec;
 use crate::util::MaybeMath;
 use crate::util::{MaybeResolve, ResolveOrZero};
+use core::marker::PhantomData;
 
 #[cfg(feature = "debug")]
 use crate::util::debug::NODE_LOGGER;
 
 /// The public interface to Taffy's Block algorithm implementation
-pub struct BlockAlgorithm;
-impl LayoutAlgorithm for BlockAlgorithm {
+pub struct BlockAlgorithm<U: Unit = f32> {
+    unit: PhantomData<U>,
+}
+impl<U: Unit> LayoutAlgorithm<U> for BlockAlgorithm<U> {
     const NAME: &'static str = "BLOCK";
 
     fn perform_layout(
-        tree: &mut impl LayoutTree,
+        tree: &mut impl LayoutTree<U>,
         node: NodeId,
-        known_dimensions: Size<Option<f32>>,
-        parent_size: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        parent_size: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         _sizing_mode: SizingMode,
         vertical_margins_are_collapsible: Line<bool>,
-    ) -> SizeBaselinesAndMargins {
+    ) -> SizeBaselinesAndMargins<U> {
         compute(
             tree,
             node,
@@ -39,15 +43,15 @@ impl LayoutAlgorithm for BlockAlgorithm {
     }
 
     fn measure_size(
-        tree: &mut impl LayoutTree,
+        tree: &mut impl LayoutTree<U>,
         node: NodeId,
-        known_dimensions: Size<Option<f32>>,
-        parent_size: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        parent_size: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         _sizing_mode: SizingMode,
         vertical_margins_are_collapsible: Line<bool>,
-    ) -> Size<f32> {
-        compute(
+    ) -> Size<U> {
+        compute::<U>(
             tree,
             node,
             known_dimensions,
@@ -61,7 +65,7 @@ impl LayoutAlgorithm for BlockAlgorithm {
 }
 
 /// Per-child data that is accumulated and modified over the course of the layout algorithm
-struct BlockItem {
+struct BlockItem<U: Unit = f32> {
     /// The identifier for the associated node
     node_id: NodeId,
 
@@ -70,11 +74,11 @@ struct BlockItem {
     order: u32,
 
     /// The base size of this item
-    size: Size<Option<f32>>,
+    size: Size<Option<U>>,
     /// The minimum allowable size of this item
-    min_size: Size<Option<f32>>,
+    min_size: Size<Option<U>>,
     /// The maximum allowable size of this item
-    max_size: Size<Option<f32>>,
+    max_size: Size<Option<U>>,
 
     /// The position style of the item
     position: Position,
@@ -83,27 +87,27 @@ struct BlockItem {
     /// The margin of this item
     margin: Rect<LengthPercentageAuto>,
     /// The sum of padding and border for this item
-    padding_border_sum: Size<f32>,
+    padding_border_sum: Size<U>,
 
     /// The computed border box size of this item
-    computed_size: Size<f32>,
+    computed_size: Size<U>,
     /// The computed "static position" of this item. The static position is the position
     /// taking into account padding, border, margins, and scrollbar_gutters but not inset
-    static_position: Point<f32>,
+    static_position: Point<U>,
     /// Whether margins can be collapsed through this item
     can_be_collapsed_through: bool,
 }
 
 /// Computes the layout of [`LayoutTree`] according to the block layout algorithm
-pub fn compute(
-    tree: &mut impl LayoutTree,
+pub fn compute<U: Unit>(
+    tree: &mut impl LayoutTree<U>,
     node_id: NodeId,
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     run_mode: RunMode,
     vertical_margins_are_collapsible: Line<bool>,
-) -> SizeBaselinesAndMargins {
+) -> SizeBaselinesAndMargins<U> {
     let style = tree.style(node_id);
 
     // Pull these out earlier to avoid borrowing issues
@@ -155,15 +159,15 @@ pub fn compute(
 }
 
 /// Computes the layout of [`LayoutTree`] according to the block layout algorithm
-fn compute_inner(
-    tree: &mut impl LayoutTree,
+fn compute_inner<U: Unit>(
+    tree: &mut impl LayoutTree<U>,
     node_id: NodeId,
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     run_mode: RunMode,
     vertical_margins_are_collapsible: Line<bool>,
-) -> SizeBaselinesAndMargins {
+) -> SizeBaselinesAndMargins<U> {
     let style = tree.style(node_id);
     let raw_padding = style.padding;
     let raw_border = style.border;
@@ -306,7 +310,11 @@ fn compute_inner(
 
 /// Create a `Vec` of `BlockItem` structs where each item in the `Vec` represents a child of the current node
 #[inline]
-fn generate_item_list(tree: &impl LayoutTree, node: NodeId, node_inner_size: Size<Option<f32>>) -> Vec<BlockItem> {
+fn generate_item_list<U: Unit>(
+    tree: &impl LayoutTree<U>,
+    node: NodeId,
+    node_inner_size: Size<Option<U>>,
+) -> Vec<BlockItem<U>> {
     tree.children(node)
         .map(|child_node_id| (child_node_id, tree.style(child_node_id)))
         .filter(|(_, style)| style.display != Display::None)
@@ -338,11 +346,11 @@ fn generate_item_list(tree: &impl LayoutTree, node: NodeId, node_inner_size: Siz
 
 /// Compute the content-based width in the case that the width of the container is not known
 #[inline]
-fn determine_content_based_container_width(
-    tree: &mut impl LayoutTree,
-    items: &[BlockItem],
-    available_width: AvailableSpace,
-) -> f32 {
+fn determine_content_based_container_width<U: Unit>(
+    tree: &mut impl LayoutTree<U>,
+    items: &[BlockItem<U>],
+    available_width: AvailableSpace<U>,
+) -> U {
     let available_space = Size { width: available_width, height: AvailableSpace::MinContent };
 
     let mut max_child_width = 0.0;
@@ -363,9 +371,9 @@ fn determine_content_based_container_width(
 
             size_and_baselines.size.width + item_x_margin_sum
         });
-        let width = f32_max(width, item.padding_border_sum.width);
+        let width = Real::max(width, item.padding_border_sum.width);
 
-        max_child_width = f32_max(max_child_width, width);
+        max_child_width = Real::max(max_child_width, width);
     }
 
     max_child_width
@@ -373,14 +381,14 @@ fn determine_content_based_container_width(
 
 /// Compute each child's final size and position
 #[inline]
-fn perform_final_layout_on_in_flow_children(
-    tree: &mut impl LayoutTree,
-    items: &mut [BlockItem],
-    container_outer_width: f32,
-    content_box_inset: Rect<f32>,
-    resolved_content_box_inset: Rect<f32>,
+fn perform_final_layout_on_in_flow_children<U: Unit>(
+    tree: &mut impl LayoutTree<U>,
+    items: &mut [BlockItem<U>],
+    container_outer_width: U,
+    content_box_inset: Rect<U>,
+    resolved_content_box_inset: Rect<U>,
     own_margins_collapse_with_children: Line<bool>,
-) -> (f32, CollapsibleMarginSet, CollapsibleMarginSet) {
+) -> (U, CollapsibleMarginSet<U>, CollapsibleMarginSet<U>) {
     // Resolve container_inner_width for sizing child nodes using intial content_box_inset
     let container_inner_width = container_outer_width - content_box_inset.horizontal_axis_sum();
     let parent_size = Size { width: Some(container_outer_width), height: None };
@@ -388,8 +396,8 @@ fn perform_final_layout_on_in_flow_children(
         Size { width: AvailableSpace::Definite(container_inner_width), height: AvailableSpace::MinContent };
 
     let mut committed_y_offset = resolved_content_box_inset.top;
-    let mut first_child_top_margin_set = CollapsibleMarginSet::ZERO;
-    let mut active_collapsible_margin_set = CollapsibleMarginSet::ZERO;
+    let mut first_child_top_margin_set = CollapsibleMarginSet::zero();
+    let mut active_collapsible_margin_set = CollapsibleMarginSet::zero();
     let mut is_collapsing_with_first_margin_set = true;
     for item in items.iter_mut() {
         if item.position == Position::Absolute {
@@ -419,13 +427,13 @@ fn perform_final_layout_on_in_flow_children(
             // Expand auto margins to fill available space
             // Note: Vertical auto-margins for relatively positioned block items simply resolve to 0.
             // See: https://www.w3.org/TR/CSS21/visudet.html#abs-non-replaced-width
-            let free_x_space = f32_max(0.0, container_inner_width - final_size.width - item_non_auto_x_margin_sum);
+            let free_x_space = Real::max(0.0, container_inner_width - final_size.width - item_non_auto_x_margin_sum);
             let x_axis_auto_margin_size = {
                 let auto_margin_count = item_margin.left.is_none() as u8 + item_margin.right.is_none() as u8;
                 if auto_margin_count == 2 && item.size.width.is_none() {
                     0.0
                 } else if auto_margin_count > 0 {
-                    free_x_space / auto_margin_count as f32
+                    free_x_space / auto_margin_count as U
                 } else {
                     0.0
                 }
@@ -496,17 +504,17 @@ fn perform_final_layout_on_in_flow_children(
         if own_margins_collapse_with_children.end { 0.0 } else { last_child_bottom_margin_set.resolve() };
 
     committed_y_offset += resolved_content_box_inset.bottom + bottom_y_margin_offset;
-    let content_height = f32_max(0.0, committed_y_offset);
+    let content_height = Real::max(0.0, committed_y_offset);
     (content_height, first_child_top_margin_set, last_child_bottom_margin_set)
 }
 
 /// Perform absolute layout on all absolutely positioned children.
 #[inline]
-fn perform_absolute_layout_on_absolute_children(
-    tree: &mut impl LayoutTree,
-    items: &[BlockItem],
-    area_size: Size<f32>,
-    area_offset: Point<f32>,
+fn perform_absolute_layout_on_absolute_children<U: Unit>(
+    tree: &mut impl LayoutTree<U>,
+    items: &[BlockItem<U>],
+    area_size: Size<U>,
+    area_offset: Point<U>,
 ) {
     let area_width = area_size.width;
     let area_height = area_size.height;
@@ -547,7 +555,7 @@ fn perform_absolute_layout_on_absolute_children(
         //   - Item has both left and right inset properties set
         if let (None, Some(left), Some(right)) = (known_dimensions.width, left, right) {
             let new_width_raw = area_width.maybe_sub(margin.left).maybe_sub(margin.right) - left - right;
-            known_dimensions.width = Some(f32_max(new_width_raw, 0.0));
+            known_dimensions.width = Some(Real::max(new_width_raw, 0.0));
             known_dimensions = known_dimensions.maybe_apply_aspect_ratio(aspect_ratio).maybe_clamp(min_size, max_size);
         }
 
@@ -556,7 +564,7 @@ fn perform_absolute_layout_on_absolute_children(
         //   - Item has both top and bottom inset properties set
         if let (None, Some(top), Some(bottom)) = (known_dimensions.height, top, bottom) {
             let new_height_raw = area_height.maybe_sub(margin.top).maybe_sub(margin.bottom) - top - bottom;
-            known_dimensions.height = Some(f32_max(new_height_raw, 0.0));
+            known_dimensions.height = Some(Real::max(new_height_raw, 0.0));
             known_dimensions = known_dimensions.maybe_apply_aspect_ratio(aspect_ratio).maybe_clamp(min_size, max_size);
         }
 
@@ -612,7 +620,7 @@ fn perform_absolute_layout_on_absolute_children(
                     {
                         0.0
                     } else if auto_margin_count > 0 {
-                        free_space.width / auto_margin_count as f32
+                        free_space.width / auto_margin_count as U
                     } else {
                         0.0
                     }
@@ -624,7 +632,7 @@ fn perform_absolute_layout_on_absolute_children(
                     {
                         0.0
                     } else if auto_margin_count > 0 {
-                        free_space.height / auto_margin_count as f32
+                        free_space.height / auto_margin_count as U
                     } else {
                         0.0
                     }

@@ -1,7 +1,7 @@
 //! Contains numerical helper traits and functions
 #![allow(clippy::manual_clamp)]
 
-use crate::geometry::Size;
+use crate::geometry::{Size, Unit};
 use crate::style::AvailableSpace;
 
 /// A trait to conveniently calculate minimums and maximums when some data may not be defined
@@ -25,8 +25,8 @@ pub(crate) trait MaybeMath<In, Out> {
     fn maybe_sub(self, rhs: In) -> Out;
 }
 
-impl MaybeMath<Option<f32>, Option<f32>> for Option<f32> {
-    fn maybe_min(self, rhs: Option<f32>) -> Option<f32> {
+impl<U: Unit> MaybeMath<Option<U>, Option<U>> for Option<U> {
+    fn maybe_min(self, rhs: Option<U>) -> Option<U> {
         match (self, rhs) {
             (Some(l), Some(r)) => Some(l.min(r)),
             (Some(_l), None) => self,
@@ -35,7 +35,7 @@ impl MaybeMath<Option<f32>, Option<f32>> for Option<f32> {
         }
     }
 
-    fn maybe_max(self, rhs: Option<f32>) -> Option<f32> {
+    fn maybe_max(self, rhs: Option<U>) -> Option<U> {
         match (self, rhs) {
             (Some(l), Some(r)) => Some(l.max(r)),
             (Some(_l), None) => self,
@@ -44,7 +44,7 @@ impl MaybeMath<Option<f32>, Option<f32>> for Option<f32> {
         }
     }
 
-    fn maybe_clamp(self, min: Option<f32>, max: Option<f32>) -> Option<f32> {
+    fn maybe_clamp(self, min: Option<U>, max: Option<U>) -> Option<U> {
         match (self, min, max) {
             (Some(base), Some(min), Some(max)) => Some(base.min(max).max(min)),
             (Some(base), None, Some(max)) => Some(base.min(max)),
@@ -54,7 +54,7 @@ impl MaybeMath<Option<f32>, Option<f32>> for Option<f32> {
         }
     }
 
-    fn maybe_add(self, rhs: Option<f32>) -> Option<f32> {
+    fn maybe_add(self, rhs: Option<U>) -> Option<U> {
         match (self, rhs) {
             (Some(l), Some(r)) => Some(l + r),
             (Some(_l), None) => self,
@@ -63,7 +63,7 @@ impl MaybeMath<Option<f32>, Option<f32>> for Option<f32> {
         }
     }
 
-    fn maybe_sub(self, rhs: Option<f32>) -> Option<f32> {
+    fn maybe_sub(self, rhs: Option<U>) -> Option<U> {
         match (self, rhs) {
             (Some(l), Some(r)) => Some(l - r),
             (Some(_l), None) => self,
@@ -73,44 +73,44 @@ impl MaybeMath<Option<f32>, Option<f32>> for Option<f32> {
     }
 }
 
-impl MaybeMath<f32, Option<f32>> for Option<f32> {
-    fn maybe_min(self, rhs: f32) -> Option<f32> {
+impl<U: Unit> MaybeMath<U, Option<U>> for Option<U> {
+    fn maybe_min(self, rhs: U) -> Option<U> {
         self.map(|val| val.min(rhs))
     }
 
-    fn maybe_max(self, rhs: f32) -> Option<f32> {
+    fn maybe_max(self, rhs: U) -> Option<U> {
         self.map(|val| val.max(rhs))
     }
 
-    fn maybe_clamp(self, min: f32, max: f32) -> Option<f32> {
+    fn maybe_clamp(self, min: U, max: U) -> Option<U> {
         self.map(|val| val.min(max).max(min))
     }
 
-    fn maybe_add(self, rhs: f32) -> Option<f32> {
+    fn maybe_add(self, rhs: U) -> Option<U> {
         self.map(|val| val + rhs)
     }
 
-    fn maybe_sub(self, rhs: f32) -> Option<f32> {
+    fn maybe_sub(self, rhs: U) -> Option<U> {
         self.map(|val| val - rhs)
     }
 }
 
-impl MaybeMath<Option<f32>, f32> for f32 {
-    fn maybe_min(self, rhs: Option<f32>) -> f32 {
+impl<U: Unit> MaybeMath<Option<U>, U> for U {
+    fn maybe_min(self, rhs: Option<U>) -> U {
         match rhs {
             Some(val) => self.min(val),
             None => self,
         }
     }
 
-    fn maybe_max(self, rhs: Option<f32>) -> f32 {
+    fn maybe_max(self, rhs: Option<U>) -> U {
         match rhs {
             Some(val) => self.max(val),
             None => self,
         }
     }
 
-    fn maybe_clamp(self, min: Option<f32>, max: Option<f32>) -> f32 {
+    fn maybe_clamp(self, min: Option<U>, max: Option<U>) -> U {
         match (min, max) {
             (Some(min), Some(max)) => self.min(max).max(min),
             (None, Some(max)) => self.min(max),
@@ -119,14 +119,14 @@ impl MaybeMath<Option<f32>, f32> for f32 {
         }
     }
 
-    fn maybe_add(self, rhs: Option<f32>) -> f32 {
+    fn maybe_add(self, rhs: Option<U>) -> U {
         match rhs {
             Some(val) => self + val,
             None => self,
         }
     }
 
-    fn maybe_sub(self, rhs: Option<f32>) -> f32 {
+    fn maybe_sub(self, rhs: Option<U>) -> U {
         match rhs {
             Some(val) => self - val,
             None => self,
@@ -134,15 +134,15 @@ impl MaybeMath<Option<f32>, f32> for f32 {
     }
 }
 
-impl MaybeMath<f32, AvailableSpace> for AvailableSpace {
-    fn maybe_min(self, rhs: f32) -> AvailableSpace {
+impl<U: Unit> MaybeMath<U, AvailableSpace<U>> for AvailableSpace<U> {
+    fn maybe_min(self, rhs: U) -> AvailableSpace<U> {
         match self {
             AvailableSpace::Definite(val) => AvailableSpace::Definite(val.min(rhs)),
             AvailableSpace::MinContent => AvailableSpace::Definite(rhs),
             AvailableSpace::MaxContent => AvailableSpace::Definite(rhs),
         }
     }
-    fn maybe_max(self, rhs: f32) -> AvailableSpace {
+    fn maybe_max(self, rhs: U) -> AvailableSpace<U> {
         match self {
             AvailableSpace::Definite(val) => AvailableSpace::Definite(val.max(rhs)),
             AvailableSpace::MinContent => AvailableSpace::MinContent,
@@ -150,7 +150,7 @@ impl MaybeMath<f32, AvailableSpace> for AvailableSpace {
         }
     }
 
-    fn maybe_clamp(self, min: f32, max: f32) -> AvailableSpace {
+    fn maybe_clamp(self, min: U, max: U) -> AvailableSpace<U> {
         match self {
             AvailableSpace::Definite(val) => AvailableSpace::Definite(val.min(max).max(min)),
             AvailableSpace::MinContent => AvailableSpace::MinContent,
@@ -158,14 +158,14 @@ impl MaybeMath<f32, AvailableSpace> for AvailableSpace {
         }
     }
 
-    fn maybe_add(self, rhs: f32) -> AvailableSpace {
+    fn maybe_add(self, rhs: U) -> AvailableSpace<U> {
         match self {
             AvailableSpace::Definite(val) => AvailableSpace::Definite(val + rhs),
             AvailableSpace::MinContent => AvailableSpace::MinContent,
             AvailableSpace::MaxContent => AvailableSpace::MaxContent,
         }
     }
-    fn maybe_sub(self, rhs: f32) -> AvailableSpace {
+    fn maybe_sub(self, rhs: U) -> AvailableSpace<U> {
         match self {
             AvailableSpace::Definite(val) => AvailableSpace::Definite(val - rhs),
             AvailableSpace::MinContent => AvailableSpace::MinContent,
@@ -174,8 +174,8 @@ impl MaybeMath<f32, AvailableSpace> for AvailableSpace {
     }
 }
 
-impl MaybeMath<Option<f32>, AvailableSpace> for AvailableSpace {
-    fn maybe_min(self, rhs: Option<f32>) -> AvailableSpace {
+impl<U: Unit> MaybeMath<Option<U>, AvailableSpace<U>> for AvailableSpace<U> {
+    fn maybe_min(self, rhs: Option<U>) -> AvailableSpace<U> {
         match (self, rhs) {
             (AvailableSpace::Definite(val), Some(rhs)) => AvailableSpace::Definite(val.min(rhs)),
             (AvailableSpace::Definite(val), None) => AvailableSpace::Definite(val),
@@ -185,7 +185,7 @@ impl MaybeMath<Option<f32>, AvailableSpace> for AvailableSpace {
             (AvailableSpace::MaxContent, None) => AvailableSpace::MaxContent,
         }
     }
-    fn maybe_max(self, rhs: Option<f32>) -> AvailableSpace {
+    fn maybe_max(self, rhs: Option<U>) -> AvailableSpace<U> {
         match (self, rhs) {
             (AvailableSpace::Definite(val), Some(rhs)) => AvailableSpace::Definite(val.max(rhs)),
             (AvailableSpace::Definite(val), None) => AvailableSpace::Definite(val),
@@ -194,7 +194,7 @@ impl MaybeMath<Option<f32>, AvailableSpace> for AvailableSpace {
         }
     }
 
-    fn maybe_clamp(self, min: Option<f32>, max: Option<f32>) -> AvailableSpace {
+    fn maybe_clamp(self, min: Option<U>, max: Option<U>) -> AvailableSpace<U> {
         match (self, min, max) {
             (AvailableSpace::Definite(val), Some(min), Some(max)) => AvailableSpace::Definite(val.min(max).max(min)),
             (AvailableSpace::Definite(val), None, Some(max)) => AvailableSpace::Definite(val.min(max)),
@@ -205,7 +205,7 @@ impl MaybeMath<Option<f32>, AvailableSpace> for AvailableSpace {
         }
     }
 
-    fn maybe_add(self, rhs: Option<f32>) -> AvailableSpace {
+    fn maybe_add(self, rhs: Option<U>) -> AvailableSpace<U> {
         match (self, rhs) {
             (AvailableSpace::Definite(val), Some(rhs)) => AvailableSpace::Definite(val + rhs),
             (AvailableSpace::Definite(val), None) => AvailableSpace::Definite(val),
@@ -213,7 +213,7 @@ impl MaybeMath<Option<f32>, AvailableSpace> for AvailableSpace {
             (AvailableSpace::MaxContent, _) => AvailableSpace::MaxContent,
         }
     }
-    fn maybe_sub(self, rhs: Option<f32>) -> AvailableSpace {
+    fn maybe_sub(self, rhs: Option<U>) -> AvailableSpace<U> {
         match (self, rhs) {
             (AvailableSpace::Definite(val), Some(rhs)) => AvailableSpace::Definite(val - rhs),
             (AvailableSpace::Definite(val), None) => AvailableSpace::Definite(val),
@@ -250,7 +250,7 @@ impl<In, Out, T: MaybeMath<In, Out>> MaybeMath<Size<In>, Size<Out>> for Size<T> 
 
 #[cfg(test)]
 mod tests {
-    mod lhs_option_f32_rhs_option_f32 {
+    mod lhs_option_U_rhs_option_U {
         use crate::util::MaybeMath;
 
         #[test]
@@ -290,7 +290,7 @@ mod tests {
         }
     }
 
-    mod lhs_option_f32_rhs_f32 {
+    mod lhs_option_U_rhs_U {
         use crate::util::MaybeMath;
 
         #[test]
@@ -322,7 +322,7 @@ mod tests {
         }
     }
 
-    mod lhs_f32_rhs_option_f32 {
+    mod lhs_U_rhs_option_U {
         use crate::util::MaybeMath;
 
         #[test]

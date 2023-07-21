@@ -1,10 +1,11 @@
 //! Computes size using styles and measure functions
 
-use crate::geometry::{Line, Point, Size};
+use num_traits::real::Real;
+
+use crate::geometry::{Line, Point, Size, Unit};
 use crate::style::{AvailableSpace, Display, Overflow, Position, Style};
 use crate::tree::{CollapsibleMarginSet, Measurable};
 use crate::tree::{SizeBaselinesAndMargins, SizingMode};
-use crate::util::sys::f32_max;
 use crate::util::MaybeMath;
 use crate::util::{MaybeResolve, ResolveOrZero};
 
@@ -12,12 +13,12 @@ use crate::util::{MaybeResolve, ResolveOrZero};
 use crate::util::debug::NODE_LOGGER;
 
 /// Perform full layout on a leaf node
-pub(crate) fn perform_layout(
+pub(crate) fn perform_layout<U: Unit>(
     style: &Style,
     measurable: Option<&impl Measurable>,
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     sizing_mode: SizingMode,
     _vertical_margins_are_collapsible: Line<bool>,
 ) -> SizeBaselinesAndMargins {
@@ -25,25 +26,25 @@ pub(crate) fn perform_layout(
 }
 
 /// Measure a leaf node's size
-pub(crate) fn measure_size(
+pub(crate) fn measure_size<U: Unit>(
     style: &Style,
     measurable: Option<&impl Measurable>,
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     sizing_mode: SizingMode,
     _vertical_margins_are_collapsible: Line<bool>,
-) -> Size<f32> {
+) -> Size<U> {
     compute(style, measurable, known_dimensions, parent_size, available_space, sizing_mode).size
 }
 
 /// Compute the size of a leaf node (node with no children)
-pub fn compute(
+pub fn compute<U: Unit>(
     style: &Style,
     measurable: Option<&impl Measurable>,
-    known_dimensions: Size<Option<f32>>,
-    parent_size: Size<Option<f32>>,
-    available_space: Size<AvailableSpace>,
+    known_dimensions: Size<Option<U>>,
+    parent_size: Size<Option<U>>,
+    available_space: Size<AvailableSpace<U>>,
     sizing_mode: SizingMode,
 ) -> SizeBaselinesAndMargins {
     // Resolve node's preferred/min/max sizes (width/heights) against the available space (percentages resolve to pixel values)
@@ -115,8 +116,8 @@ pub fn compute(
         return SizeBaselinesAndMargins {
             size,
             first_baselines: Point::NONE,
-            top_margin: CollapsibleMarginSet::ZERO,
-            bottom_margin: CollapsibleMarginSet::ZERO,
+            top_margin: CollapsibleMarginSet::zero(),
+            bottom_margin: CollapsibleMarginSet::zero(),
             margins_can_collapse_through: !has_styles_preventing_being_collapsed_through
                 && size.height == 0.0
                 && measurable.is_none(),
@@ -146,15 +147,15 @@ pub fn compute(
             node_size.unwrap_or(measured_size + content_box_inset.sum_axes()).maybe_clamp(node_min_size, node_max_size);
         let size = Size {
             width: clamped_size.width,
-            height: f32_max(clamped_size.height, aspect_ratio.map(|ratio| clamped_size.width / ratio).unwrap_or(0.0)),
+            height: Real::max(clamped_size.height, aspect_ratio.map(|ratio| clamped_size.width / ratio).unwrap_or(0.0)),
         };
         let size = size.maybe_max(padding_border.sum_axes().map(Some));
 
         return SizeBaselinesAndMargins {
             size,
             first_baselines: Point::NONE,
-            top_margin: CollapsibleMarginSet::ZERO,
-            bottom_margin: CollapsibleMarginSet::ZERO,
+            top_margin: CollapsibleMarginSet::zero(),
+            bottom_margin: CollapsibleMarginSet::zero(),
             margins_can_collapse_through: !has_styles_preventing_being_collapsed_through
                 && size.height == 0.0
                 && measured_size.height == 0.0,
@@ -177,15 +178,15 @@ pub fn compute(
     };
 
     let size = Size {
-        width: f32_max(size.width, aspect_ratio.map(|ratio| size.height * ratio).unwrap_or(0.0)),
-        height: f32_max(size.height, aspect_ratio.map(|ratio| size.width / ratio).unwrap_or(0.0)),
+        width: Real::max(size.width, aspect_ratio.map(|ratio| size.height * ratio).unwrap_or(0.0)),
+        height: Real::max(size.height, aspect_ratio.map(|ratio| size.width / ratio).unwrap_or(0.0)),
     };
 
     SizeBaselinesAndMargins {
         size,
         first_baselines: Point::NONE,
-        top_margin: CollapsibleMarginSet::ZERO,
-        bottom_margin: CollapsibleMarginSet::ZERO,
+        top_margin: CollapsibleMarginSet::zero(),
+        bottom_margin: CollapsibleMarginSet::zero(),
         margins_can_collapse_through: !has_styles_preventing_being_collapsed_through && size.height == 0.0,
     }
 }

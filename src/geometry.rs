@@ -1,8 +1,8 @@
 //! Geometric primitives useful for layout
 
-use crate::style::Dimension;
-use crate::util::sys::f32_max;
+use crate::{prelude::TaffyZero, style::Dimension};
 use core::ops::{Add, Sub};
+use num_traits::{float::FloatCore, real::Real, Num, NumCast};
 
 #[cfg(feature = "flexbox")]
 use crate::style::FlexDirection;
@@ -24,6 +24,15 @@ impl AbsoluteAxis {
             AbsoluteAxis::Horizontal => AbsoluteAxis::Vertical,
             AbsoluteAxis::Vertical => AbsoluteAxis::Horizontal,
         }
+    }
+}
+
+/// Implemented by built-in integers and floating points
+pub trait Unit: Num + NumCast + Ord + PartialOrd + Copy + core::fmt::Debug {}
+impl<U: Num + NumCast + Ord + PartialOrd + Copy + core::fmt::Debug> Unit for U {}
+impl<U: Unit> TaffyZero for U {
+    fn zero() -> Self {
+        U::zero()
     }
 }
 
@@ -124,6 +133,14 @@ impl<U, T: Add<U>> Add<Rect<U>> for Rect<T> {
             top: self.top + rhs.top,
             bottom: self.bottom + rhs.bottom,
         }
+    }
+}
+
+impl<T: TaffyZero> TaffyZero for Rect<T> {
+    /// Returns a Rect where the left, right, top, and bottom values are all the zero value of the contained type
+    /// (e.g. 0.0, Some(0.0), or Dimension::Length(0.0))
+    fn zero() -> Self {
+        Rect { left: T::zero(), right: T::zero(), top: T::zero(), bottom: T::zero() }
     }
 }
 
@@ -230,13 +247,10 @@ where
     }
 }
 
-impl<T> Rect<T>
-where
-    T: Copy + Clone,
-{
+impl<U: Unit> Rect<U> {
     /// The `start` or `top` value of the [`Rect`], from the perspective of the main layout axis
     #[cfg(feature = "flexbox")]
-    pub(crate) fn main_start(&self, direction: FlexDirection) -> T {
+    pub(crate) fn main_start(&self, direction: FlexDirection) -> U {
         if direction.is_row() {
             self.left
         } else {
@@ -246,7 +260,7 @@ where
 
     /// The `end` or `bottom` value of the [`Rect`], from the perspective of the main layout axis
     #[cfg(feature = "flexbox")]
-    pub(crate) fn main_end(&self, direction: FlexDirection) -> T {
+    pub(crate) fn main_end(&self, direction: FlexDirection) -> U {
         if direction.is_row() {
             self.right
         } else {
@@ -256,7 +270,7 @@ where
 
     /// The `start` or `top` value of the [`Rect`], from the perspective of the cross layout axis
     #[cfg(feature = "flexbox")]
-    pub(crate) fn cross_start(&self, direction: FlexDirection) -> T {
+    pub(crate) fn cross_start(&self, direction: FlexDirection) -> U {
         if direction.is_row() {
             self.top
         } else {
@@ -266,7 +280,7 @@ where
 
     /// The `end` or `bottom` value of the [`Rect`], from the perspective of the main layout axis
     #[cfg(feature = "flexbox")]
-    pub(crate) fn cross_end(&self, direction: FlexDirection) -> T {
+    pub(crate) fn cross_end(&self, direction: FlexDirection) -> U {
         if direction.is_row() {
             self.bottom
         } else {
@@ -275,13 +289,15 @@ where
     }
 }
 
-impl Rect<f32> {
+impl<U: Unit> Rect<U> {
     /// Creates a new Rect with `0.0` as all parameters
-    pub const ZERO: Rect<f32> = Self { left: 0.0, right: 0.0, top: 0.0, bottom: 0.0 };
+    pub fn zero() -> Self {
+        Self { left: U::zero(), right: U::zero(), top: U::zero(), bottom: U::zero() }
+    }
 
     /// Creates a new Rect
     #[must_use]
-    pub const fn new(start: f32, end: f32, top: f32, bottom: f32) -> Self {
+    pub const fn new(start: U, end: U, top: U, bottom: U) -> Self {
         Self { left: start, right: end, top, bottom }
     }
 }
@@ -323,6 +339,14 @@ impl<T: Add + Copy> Line<T> {
     }
 }
 
+impl<T: TaffyZero> TaffyZero for Line<T> {
+    /// Returns a Line where both the start and end values are the zero value of the contained type
+    /// (e.g. 0.0, Some(0.0), or Dimension::Length(0.0))
+    fn zero() -> Self {
+        Line { start: T::zero(), end: T::zero() }
+    }
+}
+
 /// The width and height of a [`Rect`]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -348,6 +372,14 @@ impl<U, T: Sub<U>> Sub<Size<U>> for Size<T> {
 
     fn sub(self, rhs: Size<U>) -> Self::Output {
         Size { width: self.width - rhs.width, height: self.height - rhs.height }
+    }
+}
+
+impl<T: TaffyZero> TaffyZero for Size<T> {
+    /// Returns a Size where both the width and height values are the zero value of the contained type
+    /// (e.g. 0.0, Some(0.0), or Dimension::Length(0.0))
+    fn zero() -> Self {
+        Size { width: T::zero(), height: T::zero() }
     }
 }
 
@@ -515,23 +547,20 @@ impl<T> Size<T> {
     }
 }
 
-impl Size<f32> {
-    /// A [`Size`] with zero width and height
-    pub const ZERO: Size<f32> = Self { width: 0.0, height: 0.0 };
-
-    /// Applies f32_max to each component separately
-    pub fn f32_max(self, rhs: Size<f32>) -> Size<f32> {
-        Size { width: f32_max(self.width, rhs.width), height: f32_max(self.height, rhs.height) }
+impl<U: Unit> Size<U> {
+    /// Applies `Real::max` to each component separately
+    pub fn max(self, rhs: Size<U>) -> Size<U> {
+        Size { width: Real::max(self.width, rhs.width), height: Real::max(self.height, rhs.height) }
     }
 }
 
-impl Size<Option<f32>> {
+impl<U: Unit> Size<Option<U>> {
     /// A [`Size`] with `None` width and height
-    pub const NONE: Size<Option<f32>> = Self { width: None, height: None };
+    pub const NONE: Size<Option<U>> = Self { width: None, height: None };
 
-    /// A [`Size<Option<f32>>`] with `Some(width)` and `Some(height)` as parameters
+    /// A [`Size<Option<U>>`] with `Some(width)` and `Some(height)` as parameters
     #[must_use]
-    pub const fn new(width: f32, height: f32) -> Self {
+    pub const fn new(width: U, height: U) -> Self {
         Size { width: Some(width), height: Some(height) }
     }
 
@@ -540,7 +569,7 @@ impl Size<Option<f32>> {
     ///   - If height is `Some` but width is `None`, then width is computed from height and aspect_ratio
     ///
     /// If aspect_ratio is `None` then this function simply returns self.
-    pub fn maybe_apply_aspect_ratio(self, aspect_ratio: Option<f32>) -> Size<Option<f32>> {
+    pub fn maybe_apply_aspect_ratio(self, aspect_ratio: Option<U>) -> Size<Option<U>> {
         match aspect_ratio {
             Some(ratio) => match (self.width, self.height) {
                 (Some(width), None) => Size { width: Some(width), height: Some(width / ratio) },
@@ -570,16 +599,16 @@ impl<T> Size<Option<T>> {
     }
 }
 
-impl Size<Dimension> {
+impl<U: Unit> Size<Dimension<U>> {
     /// Generates a [`Size<Dimension>`] using [`Dimension::Length`] values
     #[must_use]
-    pub const fn from_lengths(width: f32, height: f32) -> Self {
+    pub const fn from_lengths(width: U, height: U) -> Self {
         Size { width: Dimension::Length(width), height: Dimension::Length(height) }
     }
 
     /// Generates a [`Size<Dimension>`] using [`Dimension::Percent`] values
     #[must_use]
-    pub const fn from_percent(width: f32, height: f32) -> Self {
+    pub const fn from_percent(width: U, height: U) -> Self {
         Size { width: Dimension::Percent(width), height: Dimension::Percent(height) }
     }
 }
@@ -596,12 +625,7 @@ pub struct Point<T> {
     pub y: T,
 }
 
-impl Point<f32> {
-    /// A [`Point`] with values (0,0), representing the origin
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
-}
-
-impl Point<Option<f32>> {
+impl<U: Unit> Point<Option<U>> {
     /// A [`Point`] with values (None, None)
     pub const NONE: Self = Self { x: None, y: None };
 }
@@ -612,6 +636,14 @@ impl<U, T: Add<U>> Add<Point<U>> for Point<T> {
 
     fn add(self, rhs: Point<U>) -> Self::Output {
         Point { x: self.x + rhs.x, y: self.y + rhs.y }
+    }
+}
+
+impl<T: TaffyZero> TaffyZero for Point<T> {
+    /// Returns a Point where both the x and y values are the zero value of the contained type
+    /// (e.g. 0.0, Some(0.0), or Dimension::Length(0.0))
+    fn zero() -> Self {
+        Point { x: T::zero(), y: T::zero() }
     }
 }
 

@@ -1,5 +1,5 @@
 //! A cache for storing the results of layout computation
-use crate::geometry::Size;
+use crate::geometry::{Size, Unit};
 use crate::style::AvailableSpace;
 use crate::tree::{RunMode, SizeBaselinesAndMargins};
 
@@ -8,25 +8,25 @@ const CACHE_SIZE: usize = 7;
 
 /// Cached intermediate layout results
 #[derive(Debug, Clone, Copy)]
-pub struct CacheEntry {
+pub struct CacheEntry<U: Unit = f32> {
     /// The initial cached size of the node itself
-    known_dimensions: Size<Option<f32>>,
+    known_dimensions: Size<Option<U>>,
     /// The initial cached size of the parent's node
-    available_space: Size<AvailableSpace>,
+    available_space: Size<AvailableSpace<U>>,
     /// Whether or not layout should be recomputed
     run_mode: RunMode,
 
     /// The cached size and baselines of the item
-    cached_size_and_baselines: SizeBaselinesAndMargins,
+    cached_size_and_baselines: SizeBaselinesAndMargins<U>,
 }
 
 /// A cache for caching the results of a sizing a Grid Item or Flexbox Item
-pub struct Cache {
+pub struct Cache<U: Unit = f32> {
     /// An array of entries in the cache
-    entries: [Option<CacheEntry>; CACHE_SIZE],
+    entries: [Option<CacheEntry<U>>; CACHE_SIZE],
 }
 
-impl Cache {
+impl<U: Unit> Cache<U> {
     /// Create a new empty cache
     pub const fn new() -> Self {
         Self { entries: [None; CACHE_SIZE] }
@@ -56,7 +56,7 @@ impl Cache {
     /// - Slot 5: Neither known_dimensions were set and we are sizing under a MaxContent or Definite available space constraint
     /// - Slot 6: Neither known_dimensions were set and we are sizing under a MinContent constraint
     #[inline]
-    fn compute_cache_slot(known_dimensions: Size<Option<f32>>, available_space: Size<AvailableSpace>) -> usize {
+    fn compute_cache_slot(known_dimensions: Size<Option<U>>, available_space: Size<AvailableSpace<U>>) -> usize {
         let has_known_width = known_dimensions.width.is_some();
         let has_known_height = known_dimensions.height.is_some();
 
@@ -86,8 +86,8 @@ impl Cache {
     #[inline]
     pub fn get(
         &self,
-        known_dimensions: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         run_mode: RunMode,
     ) -> Option<SizeBaselinesAndMargins> {
         for entry in self.entries.iter().flatten() {
@@ -117,8 +117,8 @@ impl Cache {
     /// Store a computed size in the cache
     pub fn store(
         &mut self,
-        known_dimensions: Size<Option<f32>>,
-        available_space: Size<AvailableSpace>,
+        known_dimensions: Size<Option<U>>,
+        available_space: Size<AvailableSpace<U>>,
         run_mode: RunMode,
         cached_size_and_baselines: SizeBaselinesAndMargins,
     ) {

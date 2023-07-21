@@ -1,29 +1,30 @@
 //! Alignment of tracks and final positioning of items
+use num_traits::real::Real;
+
 use super::types::GridTrack;
 use crate::compute::common::alignment::compute_alignment_offset;
-use crate::geometry::InBothAbsAxis;
+use crate::geometry::{InBothAbsAxis, Unit};
 use crate::geometry::{Line, Point, Rect, Size};
 use crate::style::{AlignContent, AlignItems, AlignSelf, AvailableSpace, Position};
 use crate::tree::{Layout, SizingMode};
 use crate::tree::{LayoutTree, NodeId};
-use crate::util::sys::{f32_max, f32_min};
 use crate::util::MaybeMath;
 use crate::util::{MaybeResolve, ResolveOrZero};
 
 /// Align the grid tracks within the grid according to the align-content (rows) or
 /// justify-content (columns) property. This only does anything if the size of the
 /// grid is not equal to the size of the grid container in the axis being aligned.
-pub(super) fn align_tracks(
-    grid_container_content_box_size: f32,
-    padding: Line<f32>,
-    border: Line<f32>,
-    tracks: &mut [GridTrack],
+pub(super) fn align_tracks<U: Unit>(
+    grid_container_content_box_size: U,
+    padding: Line<U>,
+    border: Line<U>,
+    tracks: &mut [GridTrack<U>],
     track_alignment_style: AlignContent,
 ) {
-    let used_size: f32 = tracks.iter().map(|track| track.base_size).sum();
+    let used_size: U = tracks.iter().map(|track| track.base_size).sum();
     let size_diff = grid_container_content_box_size - used_size;
-    let free_space = f32_max(size_diff, 0.0);
-    let overflow = f32_min(size_diff, 0.0);
+    let free_space = Real::max(size_diff, 0.0);
+    let overflow = Real::min(size_diff, 0.0);
 
     // If the used_size > grid_container_size then the tracks must overflow their container
     // The direction in which they do so is determined by the alignment style
@@ -70,13 +71,13 @@ pub(super) fn align_tracks(
 }
 
 /// Align and size a grid item into it's final position
-pub(super) fn align_and_position_item(
-    tree: &mut impl LayoutTree,
+pub(super) fn align_and_position_item<U: Unit>(
+    tree: &mut impl LayoutTree<U>,
     node: NodeId,
     order: u32,
-    grid_area: Rect<f32>,
+    grid_area: Rect<U>,
     container_alignment_styles: InBothAbsAxis<Option<AlignItems>>,
-    baseline_shim: f32,
+    baseline_shim: U,
 ) {
     let grid_area_size = Size { width: grid_area.right - grid_area.left, height: grid_area.bottom - grid_area.top };
 
@@ -137,7 +138,7 @@ pub(super) fn align_and_position_item(
         // positioned element being set
         if position == Position::Absolute {
             if let (Some(left), Some(right)) = (inset_horizontal.start, inset_horizontal.end) {
-                return Some(f32_max(grid_area_minus_item_margins_size.width - left - right, 0.0));
+                return Some(Real::max(grid_area_minus_item_margins_size.width - left - right, 0.0));
             }
         }
 
@@ -162,7 +163,7 @@ pub(super) fn align_and_position_item(
     let height = height.or_else(|| {
         if position == Position::Absolute {
             if let (Some(top), Some(bottom)) = (inset_vertical.start, inset_vertical.end) {
-                return Some(f32_max(grid_area_minus_item_margins_size.height - top - bottom, 0.0));
+                return Some(Real::max(grid_area_minus_item_margins_size.height - top - bottom, 0.0));
             }
         }
 
@@ -223,23 +224,23 @@ pub(super) fn align_and_position_item(
 }
 
 /// Align and size a grid item along a single axis
-pub(super) fn align_item_within_area(
-    grid_area: Line<f32>,
+pub(super) fn align_item_within_area<U: Unit>(
+    grid_area: Line<U>,
     alignment_style: AlignSelf,
-    resolved_size: f32,
+    resolved_size: U,
     position: Position,
-    inset: Line<Option<f32>>,
-    margin: Line<Option<f32>>,
-    baseline_shim: f32,
-) -> f32 {
+    inset: Line<Option<U>>,
+    margin: Line<Option<U>>,
+    baseline_shim: U,
+) -> U {
     // Calculate grid area dimension in the axis
     let non_auto_margin = Line { start: margin.start.unwrap_or(0.0) + baseline_shim, end: margin.end.unwrap_or(0.0) };
-    let grid_area_size = f32_max(grid_area.end - grid_area.start, 0.0);
-    let free_space = f32_max(grid_area_size - resolved_size - non_auto_margin.sum(), 0.0);
+    let grid_area_size = Real::max(grid_area.end - grid_area.start, 0.0);
+    let free_space = Real::max(grid_area_size - resolved_size - non_auto_margin.sum(), 0.0);
 
     // Expand auto margins to fill available space
     let auto_margin_count = margin.start.is_none() as u8 + margin.end.is_none() as u8;
-    let auto_margin_size = if auto_margin_count > 0 { free_space / auto_margin_count as f32 } else { 0.0 };
+    let auto_margin_size = if auto_margin_count > 0 { free_space / auto_margin_count as U } else { 0.0 };
     let resolved_margin = Line {
         start: margin.start.unwrap_or(auto_margin_size) + baseline_shim,
         end: margin.end.unwrap_or(auto_margin_size),
